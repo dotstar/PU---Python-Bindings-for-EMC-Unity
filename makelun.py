@@ -15,7 +15,7 @@ import io
 import json
 
 def authenticate(urlbase,name,passw,timeout):
-    
+
     global headers
     global cookies
     global s  # Session
@@ -200,7 +200,6 @@ if  __name__ == "__main__":
     disable_urllib_warnings()
 
     logging.basicConfig(level=logging.DEBUG)
-    debug = 0
     logging.debug('host: {} - user: {} - password: {}'.format(host,user,password))
     urlbase = 'https://{}:443'.format(host)
     headers = {'Accept' : 'application/json',
