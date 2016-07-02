@@ -1,9 +1,13 @@
 #!/usr/bin/eval python
-
-# Sample of calling Unity REST API to create a LUN
-# Jun 2016
-# Started as a port from perl to python of code
-# example provided by EMC
+'''
+PU - Python for Unity
+Simple python bindings for snapshots on Unity
+Draws from EMC Perl examples and EMC OpenStack driver(s) at https://github.com/emc-openstack/vnxe-cinder-driver
+'''
+# Turn this into a module, then turn it into something
+# more object oriented.
+# 2 July 2016
+# Dickerson
 
 import json
 import logging
@@ -14,29 +18,80 @@ import requests
 from requests.auth import HTTPBasicAuth
 
 
-def authenticate(urlbase, name, passw, timeout):
-    global headers
-    global cookies
-    global s  # Session
-    logging.debug('checking authentication')
-    u = urlbase + '/api/types/system/instances'  # Simple get to check login access
-    try:
-        r = s.get(url=u,
-                  verify=False,
-                  headers=headers,
-                  auth=HTTPBasicAuth(user, password),
-                  timeout=timeout
-                  )
-        cookies = r.cookies
-        csrf_token = r.headers['emc-csrf-token']  # Add to headers to reduce risk of client side injection
-        headers['EMC-CSRF-TOKEN'] = csrf_token
+class array(object):
+    ''' class ARRAY - a storage device which we creates snaps, LUNS, and filesystems
+    '''
 
-        rc = True
-    except:
-        e = sys.exc_info()
-        logging.warning(e)
-        rc = False
-    return rc
+    def __init__(self, ipaddr, user='admin', password='Password123#'):
+        ''' Create an array
+        :param ipaddr: ip address
+        :param user: administrative login
+        :param password: Password
+        :return:
+        '''
+        # Use the session to avoid repeatedly creating TCP sessions to the array
+
+        # Urllib is noisy about bad certificates - turn this off.
+        from requests.packages.urllib3.exceptions import InsecureRequestWarning
+        requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+
+        def _ping(ip):
+            '''
+            from http://stackoverflow.com/questions/2953462/pinging-servers-in-python
+            :param ip: ip address
+            :return: true if reachable
+            '''
+            import subprocess, platform
+            # Ping parameters as function of OS
+            ping_str = "-n 1" if platform.system().lower() == "windows" else "-c 1"
+            args = "ping " + " " + ping_str + " " + ip
+            need_sh = False if platform.system().lower() == "windows" else True
+            # Ping
+            return subprocess.call(args, shell=need_sh) == 0
+
+        def _authenticate(urlbase, name, passw, timeout):
+            logging.debug('checking authentication')
+            u = urlbase + '/api/types/system/instances'  # Simple get to check login access
+            try:
+                r = session.get(url=u,
+                                verify=False,
+                                headers=headers,
+                                auth=HTTPBasicAuth(user, password),
+                                timeout=timeout
+                                )
+                cookies = r.cookies
+                csrf_token = r.headers['emc-csrf-token']  # Add to headers to reduce risk of client side injection
+                headers['EMC-CSRF-TOKEN'] = csrf_token
+
+                rc = True
+            except:
+                e = sys.exc_info()
+                logging.critical(e)
+                raise
+            return rc
+
+        # Ping the ipaddr to see if it is reachable
+        print('INIT CALLED')
+        try:
+            rc = _ping(ipaddr)
+            logging.debug('ping of {} succeeded'.format(ipaddr))
+        except:
+            logging.fatal("can't ping array {}".format(ipaddr))
+            raise
+
+        urlbase = 'https://{}:443'.format(ipaddr)
+        logging.debug('host: {} - user: {} - password: {}'.format(ipaddr, user, password))
+        headers = {'Accept': 'application/json',
+                   'Content-Type': 'application/json',
+                   'Accept_language': 'en_US',
+                   'X-EMC-REST-CLIENT': 'true'
+                   }
+        timeout = 12
+        session = requests.Session()
+        if not _authenticate(urlbase, ipaddr, password, timeout):
+            logging.critical("couldn't authenticate to array {}".format(ipaddr))
+        cookies = session.cookies
+        logging.debug('array instantiated')
 
 
 def disable_urllib_warnings():
@@ -194,11 +249,6 @@ def lunDeleteSnapByID(snapID):
 
     return (returnCode)
 
-
-headers = {}
-cookies = []
-s = requests.Session()  # Use the session to avoid repeatedly creating TCP sessions to the array
-urlbase = ""
 
 if __name__ == "__main__":
 
