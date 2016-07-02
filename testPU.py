@@ -27,4 +27,11 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     logging.debug('host: {} - user: {} - password: {}'.format(host, user, password))
     a = array(ipaddr=host, user=user, password=password)
-    print(a)
+    lun = 'lunderdog'
+    snapName = 'snappitysnapsnap'
+    snapName = 'testSnap_{}'.format(os.getpid())
+    snap = a.snapByName(lun, snapName)
+    import time
+
+    time.sleep(1)
+    a.deleteSnap(snapName=snapName)
