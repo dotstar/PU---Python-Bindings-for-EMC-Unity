@@ -20,8 +20,7 @@ if __name__ == "__main__":
     logging.debug('host: {} - user: {} - password: {}'.format(host, user, password))
     a = pu.array.array(ipaddr=host, user=user, password=password)
     lun = 'lunderdog'
-    snapName = 'snappitysnapsnap'
-    snapName = 'testSnap_{}'.format(os.getpid())
+    snapName = 'testSnap_{}'.format(os.getpid())  # Get a modestly unique snap Name
     snap = a.snapByName(lun, snapName)
     import time
 
