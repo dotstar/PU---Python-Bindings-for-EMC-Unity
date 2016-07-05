@@ -18,11 +18,19 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=logging.DEBUG)
     logging.debug('host: {} - user: {} - password: {}'.format(host, user, password))
-    a = pu.array.array(ipaddr=host, user=user, password=password)
-    lun = 'lunderdog'
-    snapName = 'testSnap_{}'.format(os.getpid())  # Get a modestly unique snap Name
-    snap = a.snapByName(lun, snapName)
-    import time
+    # Authenticate to array ...
+    a = pu.array(ipaddr=host, user=user, password=password)
 
-    time.sleep(1)
-    a.deleteSnap(snapName=snapName)
+    # Get and print from array
+    testUtility = True
+    if testUtility:
+        print(a.getSystemInformation)
+
+    testSnap = False
+    if testSnap:
+        lun = 'lunderdog'
+        snapName = 'testSnap_{}'.format(os.getpid())  # Get a modestly unique snap Name
+        snap = a.snapByName(lun, snapName)
+        print("snap returns as {}".format(snap))
+        # snap.delete()
+        a.deleteSnap(snapName=snapName)
