@@ -4,6 +4,7 @@
 Driver program to test pu.py
 """
 
+import json
 import logging
 import os
 
@@ -22,9 +23,34 @@ if __name__ == "__main__":
     a = pu.array(ipaddr=host, user=user, password=password)
 
     # Get and print from array
-    testUtility = True
+    testUtility = False
     if testUtility:
-        print(a.getSystemInformation)
+        j = a.basicSystemInfo()
+        print(json.dumps(j, indent=2, sort_keys=True))
+        j = a.system()
+        print(json.dumps(j, indent=2, sort_keys=True))
+
+    testLUN = True
+    if testLUN:
+        p = a.listPools()
+        a._prettyJson(p)
+        # Check a LUN which is believed to exist ...
+        lunName = 'lunderdog'
+        l = a.getLUN(lunName)
+        if l:
+            lunID = l['content']['id']
+            print('lun exists -  name: {} id: {}'.format(lunName, lunID))
+        else:
+            print('no such lun {}'.format(lunName))
+
+        # now create a new LUN
+        lunName = 'lun_{}'.format(os.getpid())
+        pool = 'flash01'
+        isThinEnabled = True
+        size = 20 * 1024 * 1024 * 1024
+        lun = a.createLUN(lunName, pool, size, description='my 1st LUN')
+        print(lun)
+
 
     testSnap = False
     if testSnap:
