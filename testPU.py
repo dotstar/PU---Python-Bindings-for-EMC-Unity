@@ -36,7 +36,8 @@ if __name__ == "__main__":
         a._prettyJson(p)
         # Check a LUN which is believed to exist ...
         lunName = 'lunderdog'
-        l = a.getLUN(lunName)
+        l = a.getLUN(name=lunName)
+        a._prettyJson(l)
         if l:
             lunID = l['content']['id']
             print('lun exists -  name: {} id: {}'.format(lunName, lunID))
@@ -47,10 +48,19 @@ if __name__ == "__main__":
         lunName = 'lun_{}'.format(os.getpid())
         pool = 'flash01'
         isThinEnabled = True
-        size = 20 * 1024 * 1024 * 1024
-        lun = a.createLUN(lunName, pool, size, description='my 1st LUN')
-        print(lun)
+        oneGB = 1 * 1024 * 1024 * 1024
+        lunsCreated = []
+        for i in range(1, 2):
+            size = i * oneGB
+            name = "{}_{}".format(lunName, i)
+            lun = a.createLUN(name, pool, size, description='my 1st LUN')
+            lunsCreated.append(lun)
+            print("lun {} create with status: {}".format(lunName, lun))
 
+        # Now delete them
+        for lunID in lunsCreated:
+            status = a.deleteLUN(lunID=lunID)
+            print(status)
 
     testSnap = False
     if testSnap:
