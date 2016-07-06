@@ -4,9 +4,14 @@
 Driver program to test pu.py
 """
 
+import os
+import sys
+
+# While we are developing, need to have look for the modules in $PWD
+sys.path.append(os.path.join(os.path.dirname(__file__), "lib"))
+
 import json
 import logging
-import os
 
 import pu
 
@@ -52,20 +57,24 @@ if __name__ == "__main__":
         isThinEnabled = True
         oneGB = 1 * 1024 * 1024 * 1024
         lunsCreated = []
-        for i in range(1, 40):
-            size = i * oneGB
-            name = "{}_{}".format(lunName, i)
-            lun = a.createLUN(name, pool, size, description='my 1st LUN')
-            lunsCreated.append(lun)
-            logging.info("lun {} create with status: {}".format(name, lun))
+        while True:
+            nluns = 4
+            logging.info('creating {} LUNs'.format(nluns))
+            for i in range(0, nluns):
+                size = oneGB
+                name = "{}_{}".format(lunName, i)
+                lun = a.createLUN(name, pool, size, description='my LUN description')
+                lunsCreated.append(lun)
+                logging.info("lun {} create with status: {}".format(name, lun))
 
-        # Now delete them
-        for lunID in lunsCreated:
-            status = a.deleteLUN(lunID=lunID)
-            if status:
-                logging.info('LUN {} deleted'.format(lunID))
-            else:
-                logging.warning('LUN deleted failed for lunID {}'.format(lunID))
+            logging.info('now deleting the same LUNs')
+            # Now delete them
+            for lunID in lunsCreated:
+                status = a.deleteLUN(lunID=lunID)
+                if status:
+                    logging.info('LUN {} deleted'.format(lunID))
+                else:
+                    logging.warning('LUN deleted failed for lunID {}'.format(lunID))
 
     testSnap = False
     if testSnap:
