@@ -1,15 +1,16 @@
 #!/usr/bin/eval python
 
 """
-Driver program to test pu.py
+Driver program to test Python Unity bindings
 """
-
-
 import os
 import sys
+
 sys.path.insert(0, os.path.abspath('..'))
-from pu import array
-import json
+
+import pu.snap
+# from snap import snap
+
 import logging
 
 if __name__ == "__main__":
@@ -24,7 +25,7 @@ if __name__ == "__main__":
                         level=logging.DEBUG)
     logging.debug('host: {} - user: {} - password: {}'.format(host, user, password))
     # Authenticate to array ...
-    a = array(ipaddr=host, user=user, password=password)
+    a = pu.unityarray.unityarray(ipaddr=host, user=user, password=password)
 
     # Get and print from array
     testUtility = False
@@ -37,16 +38,34 @@ if __name__ == "__main__":
         if j:
             print(json.dumps(j, indent=2, sort_keys=True))
 
-    nasID = a.getNASIdFromName('nas02')
-    print ("nasID: {}".format(nasID))
+    testFS = True
+    if testFS:
+        nasID = a.getNASIdFromName('nas02')
+        print("nasID: {}".format(nasID))
+        pid = os.getpid()
+        fsname = '_testfs__do_not_use_{}'.format(pid)
+        fsdescr = 'a test file system {} which should be uniquely named so that we can delete it at will'.format(pid)
+        fspool = 'flash01'
+        fssize = 1 * 1024 * 1024 * 1024  # 1 GB
+        nasname = 'nas02'
+
+        fsNasServer = a.getNASById(nasID)
+        if fsNasServer:
+            logging.info('SUCCESS - getNASByID({} {})'.format(nasID, fsNasServer))
+        else:
+            logging.warning('FAILED - getNASByID({} {})'.format(nasID, fsNasServer))
+
+        fsNasServer = a.getNASByName(nasname)
+        if fsNasServer:
+            logging.info('SUCCESS - getNASByName({} {})'.format(nasID, fsNasServer))
+        else:
+            logging.warning('FAILED - getNASByName({} {})'.format(nasID, fsNasServer))
+
+        f = a.createFileSystem(name=fsname, pool=fspool, size=fssize, NasServer=fsNasServer, description=fsdescr)
+
     exit()
 
-    testFS = False
-    if testFS:
-        f = a.createFS()
-        exit()
-
-    testLUN = True
+    testLUN = False
     if testLUN:
         p = a.listPools()
         # a._prettyJson(p)

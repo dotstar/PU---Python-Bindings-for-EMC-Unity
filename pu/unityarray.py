@@ -59,7 +59,7 @@ class unityarray:
                                      timeout=self.timeout
                                      )
                 if not r.ok:
-                    self._printError(r)
+                    self._printError("GET", r)
                 cookies = r.cookies
                 csrf_token = r.headers['emc-csrf-token']  # Add to headers to reduce risk of client side injection
                 self.headers['EMC-CSRF-TOKEN'] = csrf_token
@@ -119,7 +119,7 @@ class unityarray:
                     returnCode = snapJson['content']['id']
                     break
             else:
-                self._printError(snapInstance)
+                self._printError("GET", snapInstance)
         return (returnCode)
 
     def _prettyJson(self, j):
@@ -135,7 +135,7 @@ class unityarray:
         if r.ok:
             return (json.loads(r.content.decode('utf-8')))
         else:
-            self._printError(r)
+            self._printError("GET", r)
             return False
 
     def _getAndPrintJson(self, u):
@@ -161,7 +161,7 @@ class unityarray:
         logging.debug(url)
         ids = self.session.get(url)
         if not ids.ok:
-            self._printError(ids)
+            self._printError("GET", ids)
         js = json.loads(ids.content.decode('utf-8'))
         # prettyJson(js)
         for entry in js['entries']:
@@ -185,7 +185,7 @@ class unityarray:
                     storageResourceID = lunJSON['content']['storageResource']
                     break
             else:
-                self._printError(lunInstance)
+                self._printError("GET", lunInstance)
         return (storageResourceID)
 
     def _restToJSON(self, url):
@@ -196,7 +196,7 @@ class unityarray:
         if instance.ok:
             returnValue = (instance.loads(instance.content.decode('utf-8')))['content']
         else:
-            self._printError(instance)
+            self._printError("GET", instance)
         return returnValue
 
     def basicSystemInfo(self):
@@ -333,14 +333,14 @@ class unityarray:
             returnCode = j
         return returnCode
 
-    def _printError(self, response):
+    def _printError(self, verb, response):
         errorText = ""
         errorCode = response.status_code
         msgs = json.loads(response.text)['error']['messages']
         for m in msgs:
             errorText = errorText + m['en-US']
         logging.warning(
-            'GET failed with status {} details: {}'.format(errorCode, errorText))
+            '{} failed with status {} details: {}'.format(verb, errorCode, errorText))
 
     def createLUNParameters(self, pool, isThinEnabled=True, size=8192, fastVPParameters="", defaultNode="",
                             hostAccess="", ioLimitParameters=""):
@@ -360,27 +360,8 @@ class unityarray:
                   isThinEnabled=True, fastVPParameters="",
                   defaultNode="", hostAccess="", ioLimitParameters=""):
         ''' Build new LUN'''
-
-        def _getIDFromPoolName(poolName):
-            ''' private routine to map pool name to pool ID'''
-            instances = self._getIds(self.urlbase + '/api/types/pool/instances')
-            poolID = None
-            for i in instances:
-                u = self.urlbase + '/api/instances/pool/{}?fields=id,name'.format(i)
-                logging.debug(u)
-                poolInstance = self.session.get(url=u)
-                if poolInstance.ok:
-                    poolJSON = (json.loads(poolInstance.content.decode('utf-8')))
-                    thisPoolName = poolJSON['content']["name"]
-                    if thisPoolName == poolName:
-                        poolID = poolJSON['content']['id']
-                        break
-                else:
-                    self._printError(poolInstance)
-            return (poolID)
-
         returnCode = False
-        poolID = _getIDFromPoolName(pool)
+        poolID = self._getPoolIdByPoolName(pool)
         logging.debug('createLun({} {})'.format(name, description), ...)
         lp = self.createLUNParameters(poolID, isThinEnabled, size)
         if not name:
@@ -433,12 +414,6 @@ class unityarray:
             retCode = False
         return (retCode)
 
-    def createFSParameters(self, pool, nasServer, size, isThinEnabled='true'):
-        return False
-
-    def createFileSystem(self, name, fsParameters, description=''):
-        return False
-
     def getNASServers(self):
         """
             return: list of NAS servers on Success
@@ -486,7 +461,7 @@ class unityarray:
                     returnCode = nasJson['content']['id']
                     break
             else:
-                self._printError(nasInstance)
+                self._printError("GET", nasInstance)
         return (returnCode)
 
     def getNASById(self, nasID):
@@ -517,7 +492,34 @@ class unityarray:
                 ReturnCode = NAS
         return ReturnCode
 
-    def createFileSystem(name, description, pool, size, NasServer):
+    def _getPoolByName(self, name):
+        instances = self._getIds(self.urlbase + '/api/types/pool/instances')
+        pool = None
+        for i in instances:
+            u = self.urlbase + '/api/instances/pool/{}?fields=id,name'.format(i)
+            logging.debug(u)
+            pool = self.session.get(url=u)
+            if pool.ok:
+                poolJSON = (json.loads(pool.content.decode('utf-8')))
+                thisPoolName = poolJSON['content']["name"]
+                if thisPoolName == name:
+                    # Found what we are looking for.  Return
+                    pool = json.dumps(poolJSON['content'])
+                    break
+            else:
+                self._printError("GET", pool)
+        return pool
+
+    def _getPoolIdByPoolName(self, poolName):
+        pool = self.getPoolByName(poolName)
+        if not pool:
+            return False
+        if pool:
+            poolID = pool['content']['id']
+            pass  # Under construction
+        return (poolID)
+
+    def createFileSystem(self, name, pool, size, NasServer, description='', isThinEnabled='true', sizeAllocated=None):
         '''
         Create a Filesytem
         :param description:
@@ -531,3 +533,34 @@ class unityarray:
         :return:
         '''
         # build the fileSystemsParameters Structure
+        returnCode = False
+        logging.debug('createFileSystem {}'.format(name))
+        pool = self._getPoolByName(pool)
+        logging.debug(pool)
+        fileSystemParameters = {}
+        fileSystemParameters['pool'] = pool
+        fileSystemParameters['size'] = size
+        fileSystemParameters['nasServer'] = NasServer
+        fileSystemParameters['isThinEnabled'] = isThinEnabled
+        fileSystemParameters['sizeAllocated'] = sizeAllocated
+        fileSystemParameters['isThinEnabled'] = isThinEnabled
+        fsp = json.dumps(fileSystemParameters)
+        body = {}
+        body['name'] = 'name'
+        body['description'] = description
+        body['fileSystemParameters'] = fsp
+        body = json.dumps(body)
+
+        print(body)
+
+        u = self.urlbase + '/api/types/storageResource/action/createFilesystem'
+        r = self.session.post(url=u, data=body, headers=self.headers, verify=False)
+        if r.ok:
+            js = json.loads(r.content.decode('utf-8'))
+            lunID = js['content']['storageResource']['id']
+            returnCode = lunID
+        else:
+            self._printError("POST", r)
+        return returnCode
+
+        return
