@@ -13,7 +13,6 @@ import json
 import logging
 import sys
 
-import pu.snap
 import requests
 from requests.auth import HTTPBasicAuth
 
@@ -59,6 +58,8 @@ class array:
                                      auth=HTTPBasicAuth(user, password),
                                      timeout=self.timeout
                                      )
+                if not r.ok:
+                    self._printError(r)
                 cookies = r.cookies
                 csrf_token = r.headers['emc-csrf-token']  # Add to headers to reduce risk of client side injection
                 self.headers['EMC-CSRF-TOKEN'] = csrf_token
@@ -117,6 +118,8 @@ class array:
                 if thisSnapName == snapName:
                     returnCode = snapJson['content']['id']
                     break
+            else:
+                self._printError(snapInstance)
         return (returnCode)
 
     def _prettyJson(self, j):
@@ -132,6 +135,7 @@ class array:
         if r.ok:
             return (json.loads(r.content.decode('utf-8')))
         else:
+            self._printError(r)
             return False
 
     def _getAndPrintJson(self, u):
@@ -156,6 +160,8 @@ class array:
         idList = []
         logging.debug(url)
         ids = self.session.get(url)
+        if not ids.ok:
+            self._printError(ids)
         js = json.loads(ids.content.decode('utf-8'))
         # prettyJson(js)
         for entry in js['entries']:
@@ -178,6 +184,8 @@ class array:
                     # storageResourceID = lunJSON['content']['storageResource']['id']
                     storageResourceID = lunJSON['content']['storageResource']
                     break
+            else:
+                self._printError(lunInstance)
         return (storageResourceID)
 
     def _restToJSON(self, url):
@@ -187,6 +195,8 @@ class array:
         instance = self.session.get(url=url)
         if instance.ok:
             returnValue = (instance.loads(instance.content.decode('utf-8')))['content']
+        else:
+            self._printError(instance)
         return returnValue
 
     def basicSystemInfo(self):
@@ -323,6 +333,15 @@ class array:
             returnCode = j
         return returnCode
 
+    def _printError(self, response):
+        errorText = ""
+        errorCode = response.status_code
+        msgs = json.loads(response.text)['error']['messages']
+        for m in msgs:
+            errorText = errorText + m['en-US']
+        logging.warning(
+            'GET failed with status {} details: {}'.format(errorCode, errorText))
+
     def createLUNParameters(self, pool, isThinEnabled=True, size=8192, fastVPParameters="", defaultNode="",
                             hostAccess="", ioLimitParameters=""):
         if isThinEnabled:
@@ -357,10 +376,7 @@ class array:
                         poolID = poolJSON['content']['id']
                         break
                 else:
-                    detailedError = json.loads(poolInstance.text)['messages']
-                    logging.warning(
-                        'get failed for {} with status {} details: {}'.format(poolName, poolInstance['status_code'],
-                                                                              detailedError))
+                    self._printError(poolInstance)
             return (poolID)
 
         returnCode = False
@@ -416,3 +432,59 @@ class array:
             logging.warning('failed to retrieve lun lunName: {} lunID: {}', lunName, lunID)
             retCode = False
         return (retCode)
+
+    def createFSParameters(self, pool, nasServer, size, isThinEnabled='true'):
+        return False
+
+    def createFileSystem(self, name, fsParameters, description=''):
+        return False
+
+    def getNASServers(self):
+        """
+            return: list of NAS servers on Success
+                    False on failure
+        """
+        retCode = []
+        u = self.urlbase + '/api/types/nasServer/instances'
+        ids = self._getIds(u)
+        fields = 'id,name,health,homeSP,currentSP,pool,sizeAllocated,isReplicationEnabled,isReplicationDestination,\
+        replicationType,defaultUnixUser,defaultWindowsUser,currentUnixDirectoryService,isMultiProtocolEnabled,\
+        isWindowsToUnixUsernameMappingEnabled,allowUnmappedUser,cifsServer,preferredInterfaceSettings,fileDNSServer,\
+        fileInterface,virusChecker'
+        # get rid of the blanks in the string
+        fields = fields.replace(" ", "")
+        fields = fields.replace('\i', '')
+        Valid = False
+        for id in ids:
+            u = self.urlbase + '/api/instances/nasServer/{}'.format(id) + '?fields=' + fields
+            nasJson = self._getJSON(u)
+            if nasJson:
+                Valid = True
+                retCode.append(nasJson)
+        if not Valid:
+            retCode = False
+        return retCode
+
+    def getNASIdFromName(self, nasname):
+        '''
+
+        :param nasname: - the name that the user calls this NAS
+        :return: integer ID or False
+        '''
+
+        u = self.urlbase + '/api/types/nasServer/instances'  # All Snapshots
+        returnCode = False
+        ids = self._getIds(u)
+        for nasId in ids:
+            u = self.urlbase + '/api/instances/nasServer/{}?fields=name'.format(nasId)
+            logging.debug(u)
+            nasInstance = self.session.get(url=u)
+            if nasInstance.ok:
+                nasJson = (json.loads(nasInstance.content.decode('utf-8')))
+                thisNASName = nasJson['content']['name']
+                if thisNASName == nasname:
+                    returnCode = nasJson['content']['id']
+                    break
+            else:
+                self._printError(nasInstance)
+        return (returnCode)

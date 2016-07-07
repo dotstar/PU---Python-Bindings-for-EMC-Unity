@@ -1,7 +1,7 @@
 import logging
 
 
-class snap(object):
+class snap():
     ''' class ARRAY - a storage device which we creates snaps, LUNS, and filesystems
     '''
 
