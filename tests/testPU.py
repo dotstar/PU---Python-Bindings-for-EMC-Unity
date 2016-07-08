@@ -38,7 +38,7 @@ if __name__ == "__main__":
         if j:
             print(json.dumps(j, indent=2, sort_keys=True))
 
-    testFS = True
+    testFS = False
     if testFS:
         nasID = a.getNASIdFromName('nas02')
         print("nasID: {}".format(nasID))
@@ -60,12 +60,14 @@ if __name__ == "__main__":
             logging.info('SUCCESS - getNASByName({} {})'.format(nasID, fsNasServer))
         else:
             logging.warning('FAILED - getNASByName({} {})'.format(nasID, fsNasServer))
+        for i in range(0, 3):
+            # create some filesystems
+            logging.basicConfig(level=logging.INFO)
+            fsname = '_testfs__do_not_use_{}_{}'.format(pid, i)
+            f = a.createFileSystem(name=fsname, pool=fspool, size=fssize, nasServer=fsNasServer, description=fsdescr)
+    logging.basicConfig(level=logging.debug)
 
-        f = a.createFileSystem(name=fsname, pool=fspool, size=fssize, NasServer=fsNasServer, description=fsdescr)
-
-    exit()
-
-    testLUN = False
+    testLUN = True
     if testLUN:
         p = a.listPools()
         # a._prettyJson(p)
@@ -86,7 +88,7 @@ if __name__ == "__main__":
         # Create some LUNs, then Delete them
         oneGB = 1 * 1024 * 1024 * 1024
         lunsCreated = []
-        nluns = 4
+        nluns = 2
         logging.info('creating {} LUNs'.format(nluns))
         for i in range(0, nluns):
             size = oneGB

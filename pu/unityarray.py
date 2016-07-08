@@ -342,52 +342,52 @@ class unityarray:
         logging.warning(
             '{} failed with status {} details: {}'.format(verb, errorCode, errorText))
 
-    def createLUNParameters(self, pool, isThinEnabled=True, size=8192, fastVPParameters="", defaultNode="",
-                            hostAccess="", ioLimitParameters=""):
-        if isThinEnabled:
-            thin = 'true'
-        else:
-            thin = 'false'
-        pool = '{' + '"id": "{}"'.format(pool) + '}'
-        body = '{' + '"pool":{},"isThinEnabled":{},"size":{}'.format(pool, thin, size)
-        # if description:
-        #     body = body + ',"description":"{}"'.format(description)
-        body = body + '}'
-        logging.debug(body)
-        return json.loads(body)
-
     def createLUN(self, name, pool, size=(1 * 1024 * 1024 * 1024), description="", lunParameters="",
                   isThinEnabled=True, fastVPParameters="",
                   defaultNode="", hostAccess="", ioLimitParameters=""):
         ''' Build new LUN'''
+
         returnCode = False
-        poolID = self._getPoolIdByPoolName(pool)
-        logging.debug('createLun({} {})'.format(name, description), ...)
-        lp = self.createLUNParameters(poolID, isThinEnabled, size)
+
+        logging.debug('createLun({} {},...)'.format(name, description))
+
         if not name:
+            logging.critical('must supply a name in createLUN()')
             return False
-        u = self.urlbase + '/api/types/storageResource/action/createLun'
-        lp = json.dumps(lp)
-        body = '{' + '"name" : "{}"'.format(name)
+
+        ## Create LUN Parameters
+        poolID = self._getPoolIdByPoolName(pool)
+        poolDict = {}
+        poolDict['id'] = poolID
+
+        # create lunParameters Structure
+        lpDict = {}
+        lpDict['size'] = size
+        lpDict['pool'] = poolDict
+        if isThinEnabled:
+            lpDict['isThinEnabled'] = isThinEnabled
+
+        # Form the message body for lunCreate API
+        bodyDict = {}
+        bodyDict['name'] = name
         if description:
             description = description[0:170]  # max 170 characters
-            body = body + ',"description": "{}"'.format(description)
-        body = body + ', "lunParameters": {}'.format(lp)
-        body = body + '}'
+            bodyDict['description'] = description
+        bodyDict['lunParameters'] = lpDict
+        body = json.dumps(bodyDict)
+        # print(body)
+
+        # Create the LUN
+        u = self.urlbase + '/api/types/storageResource/action/createLun'
         r = self.session.post(url=u, data=body, headers=self.headers, verify=False)
         if r.ok:
             js = json.loads(r.content.decode('utf-8'))
             lunID = js['content']['storageResource']['id']
             returnCode = lunID
         else:
-            if r.text:
-                j = json.loads(r.text)
-                detailedError = j['error']['messages']
-                statusCode = j['error']['httpStatusCode']
-                logging.warning(
-                    'createLUN failed for {} with status {} details: {}'.format(name, statusCode, detailedError))
-            else:
-                logging.warning('unknown failure in createLUN({})'.format(name))
+            self._printError("POST", r)
+            returnCode = False
+
         return returnCode
 
     def deleteLUN(self, lunID=None, lunName=None):
@@ -405,7 +405,14 @@ class unityarray:
         if lun['content']['id']:
             u = self.urlbase + '/api/instances/storageResource/{}'.format(lun['content']['id'])
             lun = json.dumps(lun)
-            body = '{' + ' "forceSnapDeletion": {}, "forceVvolDeletion": {}'.format('true', 'true') + '}'
+            # Create the command body - current behavior is
+            # to dump all snaps and vvols associated with this LUN
+            # perhaps this will later be exposed as the API
+            bodyDict = {}
+            bodyDict['forceSnapDeletion'] = 'true'
+            bodyDict['forceVvolDeletion'] = 'true'
+            body = json.dumps(bodyDict)
+            # body = '{' + ' "forceSnapDeletion": {}, "forceVvolDeletion": {}'.format('true', 'true') + '}'
             r = self.session.delete(url=u, data=body, headers=self.headers, verify=False)
             if r.ok:
                 retCode = True
@@ -511,15 +518,16 @@ class unityarray:
         return pool
 
     def _getPoolIdByPoolName(self, poolName):
-        pool = self.getPoolByName(poolName)
+        poolID = False
+        pool = self._getPoolByName(poolName)
         if not pool:
             return False
         if pool:
-            poolID = pool['content']['id']
-            pass  # Under construction
+            poolDict = json.loads(pool)
+            poolID = poolDict['id']
         return (poolID)
 
-    def createFileSystem(self, name, pool, size, NasServer, description='', isThinEnabled='true', sizeAllocated=None):
+    def createFileSystem(self, name, pool, size, nasServer, description='', isThinEnabled='true', sizeAllocated=None):
         '''
         Create a Filesytem
         :param description:
@@ -536,31 +544,42 @@ class unityarray:
         if size < 3 * 1024 * 1024 * 1024:
             # min fs size is 3G
             size = 3 * 1024 * 1024 * 1024
+
         returnCode = False
         logging.debug('createFileSystem {}'.format(name))
-        pool = json.loads(self._getPoolByName(pool))
+
+        ## Need to create a dictionary representation for the JSON {"id":"poolID"}
+        ## Change the pool Variable to contain just that representation
+
+        poolDict = {}
+        poolDict['id'] = json.loads(self._getPoolByName(pool))['id']
+        pool = poolDict
+        del poolDict
         logging.debug(pool)
-        p2 = {}
-        p2['id'] = pool['id']
-        nasServer = json.loads(NasServer)
-        body = {}
-        n2 = {}
-        body['name'] = name
-        body['description'] = description
+
+        ## Need to create a dictionary representation for the JSON { {"id":"nasServerID"}
+        ## change the NasServer variable
+
+        nasServerDict = {}
+        nasServerDict['id'] = json.loads(nasServer)['id']
+        nasServer = nasServerDict
+        del nasServerDict
+        logging.debug(nasServer)
+
+        # Create the Body of the Request
+        # Starting with the File System Parameters Structure
         fsp = {}
-        fsp['pool'] = p2
+        fsp['pool'] = pool
         fsp['size'] = size
         fsp['supportedProtocols'] = 0
         fsp['isThinEnabled'] = 'true'
-        n2['id'] = nasServer['id']
-
-        fsp['nasServer'] = n2
+        fsp['nasServer'] = nasServer
+        body = {}
+        body['name'] = name
+        body['description'] = description
         body['fsParameters'] = fsp
-
-
         body = json.dumps(body)
-
-        print(body)
+        logging.debug(body)
 
         u = self.urlbase + '/api/types/storageResource/action/createFilesystem'
         r = self.session.post(url=u, data=body, headers=self.headers, verify=False)
