@@ -533,22 +533,31 @@ class unityarray:
         :return:
         '''
         # build the fileSystemsParameters Structure
+        if size < 3 * 1024 * 1024 * 1024:
+            # min fs size is 3G
+            size = 3 * 1024 * 1024 * 1024
         returnCode = False
         logging.debug('createFileSystem {}'.format(name))
-        pool = self._getPoolByName(pool)
+        pool = json.loads(self._getPoolByName(pool))
         logging.debug(pool)
-        fileSystemParameters = {}
-        fileSystemParameters['pool'] = pool
-        fileSystemParameters['size'] = size
-        fileSystemParameters['nasServer'] = NasServer
-        fileSystemParameters['isThinEnabled'] = isThinEnabled
-        fileSystemParameters['sizeAllocated'] = sizeAllocated
-        fileSystemParameters['isThinEnabled'] = isThinEnabled
-        fsp = json.dumps(fileSystemParameters)
+        p2 = {}
+        p2['id'] = pool['id']
+        nasServer = json.loads(NasServer)
         body = {}
-        body['name'] = 'name'
+        n2 = {}
+        body['name'] = name
         body['description'] = description
-        body['fileSystemParameters'] = fsp
+        fsp = {}
+        fsp['pool'] = p2
+        fsp['size'] = size
+        fsp['supportedProtocols'] = 0
+        fsp['isThinEnabled'] = 'true'
+        n2['id'] = nasServer['id']
+
+        fsp['nasServer'] = n2
+        body['fsParameters'] = fsp
+
+
         body = json.dumps(body)
 
         print(body)

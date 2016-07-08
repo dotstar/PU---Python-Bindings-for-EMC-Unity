@@ -46,7 +46,7 @@ if __name__ == "__main__":
         fsname = '_testfs__do_not_use_{}'.format(pid)
         fsdescr = 'a test file system {} which should be uniquely named so that we can delete it at will'.format(pid)
         fspool = 'flash01'
-        fssize = 1 * 1024 * 1024 * 1024  # 1 GB
+        fssize = 3 * 1024 * 1024 * 1024  # 3 GB
         nasname = 'nas02'
 
         fsNasServer = a.getNASById(nasID)
