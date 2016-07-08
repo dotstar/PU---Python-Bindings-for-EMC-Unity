@@ -418,7 +418,7 @@ class unityarray:
         elif lunName:
             lun = self.getLUN(name=lunName)
         elif not lunID and not lunName:
-            logging.critical('you must supply lunID or lunName to deleteLUN()')
+            logging.critical('you must supply lunID or lunName to deleteStorage()')
 
             return False
         if lun['content']['id']:

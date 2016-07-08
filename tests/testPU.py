@@ -9,6 +9,7 @@ import sys
 sys.path.insert(0, os.path.abspath('..'))
 
 import pu.snap
+import json
 # from snap import snap
 
 import logging
@@ -26,6 +27,29 @@ if __name__ == "__main__":
     logging.debug('host: {} - user: {} - password: {}'.format(host, user, password))
     # Authenticate to array ...
     a = pu.unityarray.unityarray(ipaddr=host, user=user, password=password)
+
+    ###
+    # Code tests around filter options
+    ###
+    logging.info('testing getLUN by name')
+    lname = 'test_only_cdd'
+    a.createLUN(name=lname, pool='flash01', size=3 * 1024 * 1024 * 1024)  # This fails if it already exists.
+    lun = a.getLUN(name=lname)
+    if lun['name'] != lname:
+        logging.info('FAILED - getLun() by name')
+    else:
+        logging.info('SUCCESS - getLun() by name')
+        logging.info('testing getLUN by id')
+        lid = lun['id']
+        lun = a.getLUN(id=lid)
+        if lun['id'] == lid and lun['name'] == lname:
+            logging.info('SUCCESS - getLun() by id')
+        else:
+            logging.info('FAILED - getLun() by id')
+    exit()
+
+
+
 
     # Get and print from array
     testUtility = False
@@ -67,7 +91,7 @@ if __name__ == "__main__":
             f = a.createFileSystem(name=fsname, pool=fspool, size=fssize, nasServer=fsNasServer, description=fsdescr)
     logging.basicConfig(level=logging.debug)
 
-    testLUN = True
+    testLUN = False
     if testLUN:
         p = a.listPools()
         # a._prettyJson(p)
@@ -88,7 +112,7 @@ if __name__ == "__main__":
         # Create some LUNs, then Delete them
         oneGB = 1 * 1024 * 1024 * 1024
         lunsCreated = []
-        nluns = 2
+        nluns = 1
         logging.info('creating {} LUNs'.format(nluns))
         for i in range(0, nluns):
             size = oneGB
@@ -100,7 +124,7 @@ if __name__ == "__main__":
         logging.info('now deleting the same LUNs')
         # Now delete them
         for lunID in lunsCreated:
-            status = a.deleteLUN(lunID=lunID)
+            status = a.deleteStorage(id=lunID, )
             if status:
                 logging.info('LUN {} deleted'.format(lunID))
             else:

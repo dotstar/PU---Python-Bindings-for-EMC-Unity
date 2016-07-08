@@ -194,7 +194,7 @@ class unityarray:
         logging.debug(url)
         instance = self.session.get(url=url)
         if instance.ok:
-            returnValue = (instance.loads(instance.content.decode('utf-8')))['content']
+            returnValue = (json.loads(instance.content.decode('utf-8')))['content']
         else:
             self._printError("GET", instance)
         return returnValue
@@ -279,7 +279,7 @@ class unityarray:
             returnCode = True
         return (returnCode)
 
-    def getLUN(self, name="", id=""):
+    def oldgetLUN(self, name="", id=""):
         ''' get information about the LUN, by Name'''
         retCode = None
         u = self.urlbase + '/api/types/lun/instances'
@@ -390,34 +390,53 @@ class unityarray:
 
         return returnCode
 
-    def deleteLUN(self, lunID=None, lunName=None):
-        ''' delete LUN by name or id'''
+    def deleteStorage(self, id=None, name=None, resourceType='lun'):
+        '''
+
+        :param lunID: an internal ID which references the resource of filesystem ID, typically as returned by _getIDs()
+        :param lunName: name of the resource to be deleted
+        :param resourceType: lun|block -or- fs|file --- defaults to lun
+        :return: True on success; else False
+        '''
+        resourceType.lower()  # make it simple on our users
+        if not resourceType in ('lun', 'fs', 'filesystem'):
+            logging.error(
+                "must pass valid resourceType to deleteStorage 'lun','block','fs',or 'file', you passed{}".format(
+                    resourceType))
         retCode = False
         lun = None
-        if lunID:
-            lun = self.getLUN(id=lunID)
-        elif lunName:
-            lun = self.getLUN(name=lunName)
-        elif not lunID and not lunName:
-            logging.critical('you must supply lunID or lunName to deleteLUN()')
+        if resourceType == "lun":
+            # prepare to delete a LUN
+            if id:
+                storageResource = self.getLUN(id=id)
+            elif name:
+                storageResource = self.getLUN(name=name)
+            elif not id and not name:
+                logging.critical('you must supply id or name to deleteStorage()')
+                return False
 
+        else:
+            # prepare to delete a file system
+            logging.critical('type {} not implemented'.format(resourceType))
             return False
-        if lun['content']['id']:
-            u = self.urlbase + '/api/instances/storageResource/{}'.format(lun['content']['id'])
-            lun = json.dumps(lun)
-            # Create the command body - current behavior is
-            # to dump all snaps and vvols associated with this LUN
-            # perhaps this will later be exposed as the API
-            bodyDict = {}
-            bodyDict['forceSnapDeletion'] = 'true'
-            bodyDict['forceVvolDeletion'] = 'true'
-            body = json.dumps(bodyDict)
-            # body = '{' + ' "forceSnapDeletion": {}, "forceVvolDeletion": {}'.format('true', 'true') + '}'
+
+        # following code is germane to deleting a LUN or filesystem
+
+        # Create the command body - current behavior is
+        # to dump all snaps and vvols associated with this LUN
+        bodyDict = {}
+        bodyDict['forceSnapDeletion'] = 'true'
+        bodyDict['forceVvolDeletion'] = 'true'
+        body = json.dumps(bodyDict)
+        if storageResource['content']['id']:
+            u = self.urlbase + '/api/instances/storageResource/{}'.format(storageResource['content']['id'])
+            storageResource = json.dumps(storageResource)
+            # Delete
             r = self.session.delete(url=u, data=body, headers=self.headers, verify=False)
             if r.ok:
                 retCode = True
         else:
-            logging.warning('failed to retrieve lun lunName: {} lunID: {}', lunName, lunID)
+            logging.warning('failed to retrieve {} name: {} id: {}', resourceType, name, name)
             retCode = False
         return (retCode)
 
@@ -591,4 +610,25 @@ class unityarray:
             self._printError("POST", r)
         return returnCode
 
-        return
+    def getLUN(self, name="", id=""):
+        ''' get information about the LUN, by Name'''
+        retCode = False
+        fields = 'id,name,health,description,type,sizeTotal,sizeUsed,sizeAllocated,perTierSizeUsed,isThinEnabled,\
+            storageResource,pool,wwn,tieringPolicy,defaultNode,currentNode,snapSchedule,isSnapSchedulePaused,\
+            ioLimitPolicy,metadataSize,metadataSizeAllocated,snapWwn,snapsSize,snapsSizeAllocated,hostAccess,snapCount'
+        if id != "":
+            # get by id
+            u = self.urlbase + '/api/types/lun/instances' + '?fields=' + fields + '&filter=id eq "{}"'.format(id)
+        elif name != "":
+            # get by name
+            u = self.urlbase + '/api/types/lun/instances' + '?fields=' + fields + '&filter=name eq "{}"'.format(name)
+        else:
+            return False
+        # get the storage Resource based on this name
+        sr = self.session.get(url=u)
+        if sr.ok:
+            srDict = json.loads(sr.content.decode('utf-8'))['entries'][0]['content']
+            return (srDict)
+        else:
+            self._printError('GET', sr)
+            return False
