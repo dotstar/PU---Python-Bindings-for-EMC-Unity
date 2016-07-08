@@ -32,8 +32,14 @@ if __name__ == "__main__":
     # Code tests around filter options
     ###
     logging.info('testing getLUN by name')
-    lname = 'test_only_cdd'
-    a.createLUN(name=lname, pool='flash01', size=3 * 1024 * 1024 * 1024)  # This fails if it already exists.
+    lname = 'test_only_cdd_{}'.format(os.getpid())
+    # Create a LUN for testing
+    rc = a.createLUN(name=lname, pool='flash01', size=3 * 1024 * 1024 * 1024)  # This fails if it already exists.
+    if rc:
+        logging.info('SUCCESS - createLUN')
+    else:
+        logging.info('FAILED - createLUN')
+
     lun = a.getLUN(name=lname)
     if lun['name'] != lname:
         logging.info('FAILED - getLun() by name')
@@ -46,8 +52,12 @@ if __name__ == "__main__":
             logging.info('SUCCESS - getLun() by id')
         else:
             logging.info('FAILED - getLun() by id')
+    rc = a.deleteStorage(name=lname, resourceType='lun')
+    if rc:
+        logging.info('SUCCESS - deleteStorage')
+    else:
+        logging.info('FAILED - deleteStorage')
     exit()
-
 
 
 

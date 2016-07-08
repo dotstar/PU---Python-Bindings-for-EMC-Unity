@@ -399,11 +399,13 @@ class unityarray:
         :return: True on success; else False
         '''
         resourceType.lower()  # make it simple on our users
+        storageResource = {}
         if not resourceType in ('lun', 'fs', 'filesystem'):
             logging.error(
                 "must pass valid resourceType to deleteStorage 'lun','block','fs',or 'file', you passed{}".format(
                     resourceType))
-        retCode = False
+            return False
+
         lun = None
         if resourceType == "lun":
             # prepare to delete a LUN
@@ -414,7 +416,6 @@ class unityarray:
             elif not id and not name:
                 logging.critical('you must supply id or name to deleteStorage()')
                 return False
-
         else:
             # prepare to delete a file system
             logging.critical('type {} not implemented'.format(resourceType))
@@ -428,13 +429,12 @@ class unityarray:
         bodyDict['forceSnapDeletion'] = 'true'
         bodyDict['forceVvolDeletion'] = 'true'
         body = json.dumps(bodyDict)
-        if storageResource['content']['id']:
-            u = self.urlbase + '/api/instances/storageResource/{}'.format(storageResource['content']['id'])
-            storageResource = json.dumps(storageResource)
-            # Delete
-            r = self.session.delete(url=u, data=body, headers=self.headers, verify=False)
-            if r.ok:
-                retCode = True
+        id = storageResource['id']
+        u = self.urlbase + '/api/instances/storageResource/{}'.format(id)
+        # Delete
+        r = self.session.delete(url=u, data=body, headers=self.headers, verify=False)
+        if r.ok:
+            retCode = True
         else:
             logging.warning('failed to retrieve {} name: {} id: {}', resourceType, name, name)
             retCode = False
@@ -610,18 +610,35 @@ class unityarray:
             self._printError("POST", r)
         return returnCode
 
-    def getLUN(self, name="", id=""):
-        ''' get information about the LUN, by Name'''
+    def getLUN(self, resourceType="lun", name="", id=""):
+        """
+
+        :param self:
+        :param resourceType: "lun" or "fs"
+        :param name: the resource Name   [ Note - only need name or id, not both ]
+        :param id: the resource ID
+        :return:
+        """
         retCode = False
-        fields = 'id,name,health,description,type,sizeTotal,sizeUsed,sizeAllocated,perTierSizeUsed,isThinEnabled,\
+        lunfields = 'id,name,health,description,type,sizeTotal,sizeUsed,sizeAllocated,perTierSizeUsed,isThinEnabled,\
             storageResource,pool,wwn,tieringPolicy,defaultNode,currentNode,snapSchedule,isSnapSchedulePaused,\
             ioLimitPolicy,metadataSize,metadataSizeAllocated,snapWwn,snapsSize,snapsSizeAllocated,hostAccess,snapCount'
+        fsfields = 'id,health,name,description,type,sizeTotal,sizeUsed,sizeAllocated,isReadOnly,isThinEnabled,\
+            storageResource,pool,nasServer,tieringPolicy,supportedProtocols,metadataSize,metadataSizeAllocated'
+        if resourceType == 'lun':
+            # Here when we are looking for a LUN
+            urlAPI = '/api/types/lun/instances'
+            fields = lunfields
+        else:
+            # Here when we are looking for a file system
+            urlAPI = '/api/types/filesystem/instances'
+            fields = fsfields
         if id != "":
             # get by id
-            u = self.urlbase + '/api/types/lun/instances' + '?fields=' + fields + '&filter=id eq "{}"'.format(id)
+            u = self.urlbase + urlAPI + '?fields=' + fields + '&filter=id eq "{}"'.format(id)
         elif name != "":
             # get by name
-            u = self.urlbase + '/api/types/lun/instances' + '?fields=' + fields + '&filter=name eq "{}"'.format(name)
+            u = self.urlbase + urlAPI + '?fields=' + fields + '&filter=name eq "{}"'.format(name)
         else:
             return False
         # get the storage Resource based on this name
