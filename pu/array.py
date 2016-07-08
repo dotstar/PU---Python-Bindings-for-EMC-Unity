@@ -308,7 +308,7 @@ class unityarray:
                     retCode = jsonLUN
                     break
         else:
-            logging.critical('fatal error, neither id or name presented to getLUN')
+            logging.critical('fatal error, neither id or name presented to getStorageDict')
             return retCode
 
         return retCode

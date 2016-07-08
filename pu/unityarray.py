@@ -279,40 +279,6 @@ class unityarray:
             returnCode = True
         return (returnCode)
 
-    def oldgetLUN(self, name="", id=""):
-        ''' get information about the LUN, by Name'''
-        retCode = None
-        u = self.urlbase + '/api/types/lun/instances'
-        ids = self._getIds(u)
-        fields = 'id,name,health,description,type,sizeTotal,sizeUsed,sizeAllocated,perTierSizeUsed,isThinEnabled,\
-                storageResource,pool,wwn,tieringPolicy,defaultNode,currentNode,snapSchedule,isSnapSchedulePaused,\
-                ioLimitPolicy,metadataSize,metadataSizeAllocated,snapWwn,snapsSize,snapsSizeAllocated,hostAccess,snapCount'
-        if id != "":
-            # get LUN object by id
-            for i in ids:
-                u = self.urlbase + '/api/instances/lun/{}'.format(i) + '?fields=' + fields
-                jsonLUN = self._getJSON(u)
-                # self._prettyJson(jsonLUN)
-                lunID = jsonLUN['content']['id']
-                if lunID == id:
-                    retCode = jsonLUN
-                    break
-        elif name != "":
-            # get LUN object by name
-            for id in ids:
-                u = self.urlbase + '/api/instances/lun/{}'.format(id) + '?fields=' + fields
-                jsonLUN = self._getJSON(u)
-                # self._prettyJson(jsonLUN)
-                lunName = jsonLUN['content']['name']
-                if lunName == name:
-                    retCode = jsonLUN
-                    break
-        else:
-            logging.critical('fatal error, neither id or name presented to getLUN')
-            return retCode
-
-        return retCode
-
     def listPools(self):
         ''' list all existing pools'''
         returnCode = False
@@ -410,9 +376,9 @@ class unityarray:
         if resourceType == "lun":
             # prepare to delete a LUN
             if id:
-                storageResource = self.getLUN(id=id)
+                storageResource = self.getStorageDict(id=id)
             elif name:
-                storageResource = self.getLUN(name=name)
+                storageResource = self.getStorageDict(name=name)
             elif not id and not name:
                 logging.critical('you must supply id or name to deleteStorage()')
                 return False
@@ -610,7 +576,7 @@ class unityarray:
             self._printError("POST", r)
         return returnCode
 
-    def getLUN(self, resourceType="lun", name="", id=""):
+    def getStorageDict(self, resourceType="lun", name="", id=""):
         """
 
         :param self:
@@ -625,6 +591,8 @@ class unityarray:
             ioLimitPolicy,metadataSize,metadataSizeAllocated,snapWwn,snapsSize,snapsSizeAllocated,hostAccess,snapCount'
         fsfields = 'id,health,name,description,type,sizeTotal,sizeUsed,sizeAllocated,isReadOnly,isThinEnabled,\
             storageResource,pool,nasServer,tieringPolicy,supportedProtocols,metadataSize,metadataSizeAllocated'
+        fsfields = 'id,name'
+        resourceType = resourceType.lower()
         if resourceType == 'lun':
             # Here when we are looking for a LUN
             urlAPI = '/api/types/lun/instances'
@@ -639,12 +607,18 @@ class unityarray:
         elif name != "":
             # get by name
             u = self.urlbase + urlAPI + '?fields=' + fields + '&filter=name eq "{}"'.format(name)
+            u = self.urlbase + urlAPI + '?fields=' + fields
         else:
             return False
         # get the storage Resource based on this name
         sr = self.session.get(url=u)
         if sr.ok:
-            srDict = json.loads(sr.content.decode('utf-8'))['entries'][0]['content']
+            tmpDict = json.loads(sr.content.decode('utf-8'))
+            if tmpDict['entries']:
+                srDict = json.loads(sr.content.decode('utf-8'))['entries'][0]['content']
+            else:
+                logging.debug('No value returned from the array for name {}'.format(name))
+                srDict = False
             return (srDict)
         else:
             self._printError('GET', sr)
