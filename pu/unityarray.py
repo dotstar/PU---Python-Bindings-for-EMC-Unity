@@ -16,6 +16,8 @@ import sys
 import requests
 from requests.auth import HTTPBasicAuth
 
+import pu.snap
+
 
 class unityarray:
     ''' class unityarray - a storage device which we creates snaps, LUNS, and filesystems
@@ -249,7 +251,7 @@ class unityarray:
 
         r = self.session.post(url=u, data=body, headers=self.headers, verify=False)
         if r.ok:
-            returnCode = pu.snap(array=self, name=snapName)
+            returnCode = pu.snap.snap(array=self, name=snapName)
         return returnCode
 
     def deleteSnap(self, snapName='', snapID=''):

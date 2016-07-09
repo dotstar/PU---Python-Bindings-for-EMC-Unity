@@ -29,7 +29,7 @@ if __name__ == "__main__":
     # Authenticate to array ...
     a = pu.unityarray.unityarray(ipaddr=host, user=user, password=password)
 
-    testLUNs = True
+    testLUNs = False
     if testLUNs:
         # create a LUN, look it up, delete it
         logging.info('testing getStorageDict by name')
@@ -70,7 +70,7 @@ if __name__ == "__main__":
         if j:
             print(json.dumps(j, indent=2, sort_keys=True))
 
-    testFS = True
+    testFS = False
     if testFS:
         nas = a.getNAS('nas02')
         nasID = nas['id']
@@ -103,7 +103,7 @@ if __name__ == "__main__":
             f = a.createFileSystem(name=fsname, pool=fspool, size=fssize, nasServer=fsNasServer, description=fsdescr)
     logging.basicConfig(level=logging.DEBUG)
 
-    testSnap = False
+    testSnap = True
     if testSnap:
         lun = 'lunderdog'
         snapName = 'testSnap_{}'.format(os.getpid())  # Get a modestly unique snap Name
