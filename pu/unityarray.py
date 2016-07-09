@@ -91,6 +91,7 @@ class unityarray:
         self.user = user
         self.password = password
         self.ipaddr = ipaddr
+        self.oneGB = 1 * 1024 * 1024 * 1024
         if not _authenticate(self.urlbase, self.ipaddr, self.password, self.timeout):
             logging.critical("couldn't authenticate to array {}".format(ipaddr))
 
@@ -308,7 +309,7 @@ class unityarray:
         logging.warning(
             '{} failed with status {} details: {}'.format(verb, errorCode, errorText))
 
-    def createLUN(self, name, pool, size=(1 * 1024 * 1024 * 1024), description="", lunParameters="",
+    def createLUN(self, name, pool, size=(3 * 1024 * 1024 * 1024), description="", lunParameters="",
                   isThinEnabled=True, fastVPParameters="",
                   defaultNode="", hostAccess="", ioLimitParameters=""):
         ''' Build new LUN'''
@@ -526,9 +527,9 @@ class unityarray:
         :return:
         '''
         # build the fileSystemsParameters Structure
-        if size < 3 * 1024 * 1024 * 1024:
+        if size < 3 * self.oneGB:
             # min fs size is 3G
-            size = 3 * 1024 * 1024 * 1024
+            size = 3 * self.oneGB
 
         returnCode = False
         logging.debug('createFileSystem {}'.format(name))
@@ -545,10 +546,10 @@ class unityarray:
         ## Need to create a dictionary representation for the JSON { {"id":"nasServerID"}
         ## change the NasServer variable
 
-        nasServerDict = {}
-        nasServerDict['id'] = json.loads(nasServer)['id']
-        nasServer = nasServerDict
-        del nasServerDict
+        # nasServerDict = {}
+        # nasServerDict['id'] = json.loads(nasServer)['id']
+        # nasServer = nasServerDict
+        # del nasServerDict
         logging.debug(nasServer)
 
         # Create the Body of the Request
@@ -558,7 +559,11 @@ class unityarray:
         fsp['size'] = size
         fsp['supportedProtocols'] = 0
         fsp['isThinEnabled'] = 'true'
-        fsp['nasServer'] = nasServer
+        ### The API doesn't seem to like the full nasServer.  Abbreviate it.
+        myNasServer = {}
+        myNasServer['name'] = nasServer['name']
+        myNasServer['id'] = nasServer['id']
+        fsp['nasServer'] = myNasServer
         body = {}
         body['name'] = name
         body['description'] = description
@@ -569,51 +574,88 @@ class unityarray:
         u = self.urlbase + '/api/types/storageResource/action/createFilesystem'
         r = self.session.post(url=u, data=body, headers=self.headers, verify=False)
         if r.ok:
-            js = json.loads(r.content.decode('utf-8'))
+            js = r.json()
+            # js = json.loads(r.content.decode('utf-8'))
             lunID = js['content']['storageResource']['id']
             returnCode = lunID
         else:
             self._printError("POST", r)
         return returnCode
 
+    def getNAS(self, name):
+        return self.getStorageDict(resourceType="nas", name=name)
+
+    def getNFS(self, name):
+        return self.getStorageDict(resourceType="nfs", name=name)
+
+    def getFS(self, name):
+        return self.getStorageDict(resourceType="fs", name=name)
+
+    def getLUN(self, name):
+        return self.getStorageDict(resourceType="lun", name=name)
+
+
     def getStorageDict(self, resourceType="lun", name="", id=""):
         """
 
         :param self:
-        :param resourceType: "lun" or "fs"
+        :param resourceType: "lun" or "fs" or "nas"
         :param name: the resource Name   [ Note - only need name or id, not both ]
         :param id: the resource ID
-        :return:
+        :return: dictionary for the storage resource or None
         """
-        retCode = False
         lunfields = 'id,name,health,description,type,sizeTotal,sizeUsed,sizeAllocated,perTierSizeUsed,isThinEnabled,\
             storageResource,pool,wwn,tieringPolicy,defaultNode,currentNode,snapSchedule,isSnapSchedulePaused,\
             ioLimitPolicy,metadataSize,metadataSizeAllocated,snapWwn,snapsSize,snapsSizeAllocated,hostAccess,snapCount'
+        nfsfields = (
+            'id,hostName,nasServer,fileInterfaces,nfsv4Enabled,isSecureEnabled,kdcType,servicePrincipalName'
+            ',isExtendedCredentialsEnabled,credentialsCacheTTL'
+        )
         fsfields = 'id,health,name,description,type,sizeTotal,sizeUsed,sizeAllocated,isReadOnly,isThinEnabled,\
             storageResource,pool,nasServer,tieringPolicy,supportedProtocols,metadataSize,metadataSizeAllocated'
-        fsfields = 'id,name'
+        nasfields = (
+            'id,name,health,homeSP,currentSP,pool,sizeAllocated,isReplicationEnabled,replicationType'
+            ',defaultUnixUser,defaultWindowsUser,currentUnixDirectoryService,isMultiProtocolEnabled'
+            ',isWindowsToUnixUsernameMappingEnabled,allowUnmappedUser,cifsServer,preferredInterfaceSettings'
+            ',fileDNSServer,fileInterface,virusChecker'
+        )
         resourceType = resourceType.lower()
         if resourceType == 'lun':
             # Here when we are looking for a LUN
             urlAPI = '/api/types/lun/instances'
             fields = lunfields
-        else:
+        elif resourceType == 'nfs':
+            # Here when we are looking for a file system
+            urlAPI = '/api/types/nfsServer/instances'
+            fields = nfsfields
+        elif resourceType == 'fs':
             # Here when we are looking for a file system
             urlAPI = '/api/types/filesystem/instances'
             fields = fsfields
+        elif resourceType == 'nas':
+            # Here when we need a NAS instance ( the filer/data mover )
+            urlAPI = '/api/types/nasServer/instances'
+            fields = nasfields
+        else:
+            logging.critical('unknown resource type {} passed to getStorageDict'.format(resourceType))
+            return False
+
         if id != "":
             # get by id
             u = self.urlbase + urlAPI + '?fields=' + fields + '&filter=id eq "{}"'.format(id)
         elif name != "":
             # get by name
-            u = self.urlbase + urlAPI + '?fields=' + fields + '&filter=name eq "{}"'.format(name)
-            u = self.urlbase + urlAPI + '?fields=' + fields
+            if resourceType == 'nfs':
+                u = self.urlbase + urlAPI + '?fields=' + fields + '&filter=hostName eq "{}"'.format(name)
+                u = self.urlbase + urlAPI + '?fields=' + fields
+            else:
+                u = self.urlbase + urlAPI + '?fields=' + fields + '&filter=name eq "{}"'.format(name)
         else:
             return False
         # get the storage Resource based on this name
         sr = self.session.get(url=u)
         if sr.ok:
-            tmpDict = json.loads(sr.content.decode('utf-8'))
+            tmpDict = sr.json()
             if tmpDict['entries']:
                 srDict = json.loads(sr.content.decode('utf-8'))['entries'][0]['content']
             else:
@@ -622,4 +664,4 @@ class unityarray:
             return (srDict)
         else:
             self._printError('GET', sr)
-            return False
+            return None

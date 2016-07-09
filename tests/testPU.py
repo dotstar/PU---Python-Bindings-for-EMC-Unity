@@ -35,7 +35,7 @@ if __name__ == "__main__":
         logging.info('testing getStorageDict by name')
         lname = 'test_only_cdd_{}'.format(os.getpid())
         # Create a LUN for testing
-        rc = a.createLUN(name=lname, pool='flash01', size=3 * 1024 * 1024 * 1024)  # This fails if it already exists.
+        rc = a.createLUN(name=lname, pool='flash01', size=3 * self.oneGB)  # This fails if it already exists.
         if rc:
             logging.info('SUCCESS - createLUN')
         else:
@@ -72,35 +72,36 @@ if __name__ == "__main__":
 
     testFS = True
     if testFS:
-        nasID = a.getNASIdFromName('nfs02')
+        nas = a.getNAS('nas02')
+        nasID = nas['id']
         print("nasID: {}".format(nasID))
-        other = a.getStorageDict(resourceType='fs', name='nfs02')
-        print(other['id'])
-        exit()
+        fs = a.getFS('nfs02')
+        fsID = fs['id']
+        print('file system: {}'.format(fsID))
+        nfs = a.getNFS('vmfs_nfs')
+        # nfsID = nfs['id']
+        # print('NFS Share: {}'.format(nfsID))
+        # exit()
+
+        # Create a file system
         pid = os.getpid()
         fsname = '_testfs__do_not_use_{}'.format(pid)
         fsdescr = 'a test file system {} which should be uniquely named so that we can delete it at will'.format(pid)
         fspool = 'flash01'
-        fssize = 3 * 1024 * 1024 * 1024  # 3 GB
+        fssize = 3 * a.oneGB  # 3 GB
         nasname = 'nas02'
 
-        fsNasServer = a.getNASById(nasID)
-        if fsNasServer:
-            logging.info('SUCCESS - getNASByID({} {})'.format(nasID, fsNasServer))
-        else:
-            logging.warning('FAILED - getNASByID({} {})'.format(nasID, fsNasServer))
-
-        fsNasServer = a.getNASByName(nasname)
+        fsNasServer = a.getNAS(nasname)
         if fsNasServer:
             logging.info('SUCCESS - getNASByName({} {})'.format(nasID, fsNasServer))
         else:
             logging.warning('FAILED - getNASByName({} {})'.format(nasID, fsNasServer))
         for i in range(0, 3):
             # create some filesystems
-            logging.basicConfig(level=logging.INFO)
+            logging.basicConfig(level=logging.DEBUG)
             fsname = '_testfs__do_not_use_{}_{}'.format(pid, i)
             f = a.createFileSystem(name=fsname, pool=fspool, size=fssize, nasServer=fsNasServer, description=fsdescr)
-    logging.basicConfig(level=logging.debug)
+    logging.basicConfig(level=logging.DEBUG)
 
     testSnap = False
     if testSnap:
