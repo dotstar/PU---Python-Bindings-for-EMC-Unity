@@ -114,7 +114,8 @@ class unityarray:
             logging.debug(u)
             snapInstance = self.session.get(url=u)
             if snapInstance.ok:
-                snapJson = (json.loads(snapInstance.content.decode('utf-8')))
+                # snapJson = (json.loads(snapInstance.content.decode('utf-8')))
+                snapJson = snapInstance.json()
                 thisSnapName = snapJson['content']['name']
                 if thisSnapName == snapName:
                     returnCode = snapJson['content']['id']
@@ -134,7 +135,8 @@ class unityarray:
     def _getJSON(self, u):
         r = self.session.get(url=u)
         if r.ok:
-            return (json.loads(r.content.decode('utf-8')))
+            # return (json.loads(r.content.decode('utf-8')))
+            return r.json()
         else:
             self._printError("GET", r)
             return False
@@ -163,7 +165,8 @@ class unityarray:
         ids = self.session.get(url)
         if not ids.ok:
             self._printError("GET", ids)
-        js = json.loads(ids.content.decode('utf-8'))
+        # js = json.loads(ids.content.decode('utf-8'))
+        js = ids.json()
         # prettyJson(js)
         for entry in js['entries']:
             id = entry['content']['id']
@@ -179,7 +182,8 @@ class unityarray:
             logging.debug(u)
             lunInstance = self.session.get(url=u)
             if lunInstance.ok:
-                lunJSON = (json.loads(lunInstance.content.decode('utf-8')))
+                # lunJSON = (json.loads(lunInstance.content.decode('utf-8')))
+                lunJSON = lunInstance.json()
                 thisLunName = lunJSON['content']["name"]
                 if thisLunName == lunName:
                     # storageResourceID = lunJSON['content']['storageResource']['id']
@@ -195,7 +199,8 @@ class unityarray:
         logging.debug(url)
         instance = self.session.get(url=url)
         if instance.ok:
-            returnValue = (json.loads(instance.content.decode('utf-8')))['content']
+            # returnValue = (json.loads(instance.content.decode('utf-8')))['content']
+            returnValue = instance.json()['content']
         else:
             self._printError("GET", instance)
         return returnValue
@@ -448,7 +453,8 @@ class unityarray:
             logging.debug(u)
             nasInstance = self.session.get(url=u)
             if nasInstance.ok:
-                nasJson = (json.loads(nasInstance.content.decode('utf-8')))
+                # nasJson = (json.loads(nasInstance.content.decode('utf-8')))
+                nasJson = nasInstance.json()
                 thisNASName = nasJson['content']['name']
                 if thisNASName == nasname:
                     returnCode = nasJson['content']['id']
@@ -493,7 +499,8 @@ class unityarray:
             logging.debug(u)
             pool = self.session.get(url=u)
             if pool.ok:
-                poolJSON = (json.loads(pool.content.decode('utf-8')))
+                # poolJSON = (json.loads(pool.content.decode('utf-8')))
+                poolJSON = pool.json()
                 thisPoolName = poolJSON['content']["name"]
                 if thisPoolName == name:
                     # Found what we are looking for.  Return

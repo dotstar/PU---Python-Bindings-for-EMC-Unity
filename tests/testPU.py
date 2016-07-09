@@ -29,13 +29,13 @@ if __name__ == "__main__":
     # Authenticate to array ...
     a = pu.unityarray.unityarray(ipaddr=host, user=user, password=password)
 
-    testLUNs = False
+    testLUNs = True
     if testLUNs:
         # create a LUN, look it up, delete it
         logging.info('testing getStorageDict by name')
         lname = 'test_only_cdd_{}'.format(os.getpid())
         # Create a LUN for testing
-        rc = a.createLUN(name=lname, pool='flash01', size=3 * self.oneGB)  # This fails if it already exists.
+        rc = a.createLUN(name=lname, pool='flash01', size=3 * a.oneGB)  # This fails if it already exists.
         if rc:
             logging.info('SUCCESS - createLUN')
         else:
@@ -60,7 +60,7 @@ if __name__ == "__main__":
             logging.info('FAILED - deleteStorage')
 
     # Get and print from array
-    testUtility = False
+    testUtility = True
     if testUtility:
         j = a.basicSystemInfo()
         print(json.dumps(j, indent=2, sort_keys=True))
@@ -96,7 +96,7 @@ if __name__ == "__main__":
             logging.info('SUCCESS - getNASByName({} {})'.format(nasID, fsNasServer))
         else:
             logging.warning('FAILED - getNASByName({} {})'.format(nasID, fsNasServer))
-        for i in range(0, 3):
+        for i in range(0, 1):
             # create some filesystems
             logging.basicConfig(level=logging.DEBUG)
             fsname = '_testfs__do_not_use_{}_{}'.format(pid, i)
