@@ -330,9 +330,13 @@ class unityarray:
             return False
 
         ## Create LUN Parameters
-        poolID = self._getPoolIdByPoolName(pool)
+        pool = self.getPool(pool)
+        if not pool:
+            # Failed to get pool, by name
+            # does the pool exist?
+            return False  # Should we throw an exception?
         poolDict = {}
-        poolDict['id'] = poolID
+        poolDict['id'] = pool['id']
 
         # create lunParameters Structure
         lpDict = {}
@@ -355,7 +359,7 @@ class unityarray:
         u = self.urlbase + '/api/types/storageResource/action/createLun'
         r = self.session.post(url=u, data=body, headers=self.headers, verify=False)
         if r.ok:
-            js = json.loads(r.content.decode('utf-8'))
+            js = r.json()
             lunID = js['content']['storageResource']['id']
             returnCode = lunID
         else:
@@ -493,34 +497,6 @@ class unityarray:
                 ReturnCode = NAS
         return ReturnCode
 
-    def _getPoolByName(self, name):
-        instances = self._getIds(self.urlbase + '/api/types/pool/instances')
-        pool = None
-        for i in instances:
-            u = self.urlbase + '/api/instances/pool/{}?fields=id,name'.format(i)
-            logging.debug(u)
-            pool = self.session.get(url=u)
-            if pool.ok:
-                # poolJSON = (json.loads(pool.content.decode('utf-8')))
-                poolJSON = pool.json()
-                thisPoolName = poolJSON['content']["name"]
-                if thisPoolName == name:
-                    # Found what we are looking for.  Return
-                    pool = json.dumps(poolJSON['content'])
-                    break
-            else:
-                self._printError("GET", pool)
-        return pool
-
-    def _getPoolIdByPoolName(self, poolName):
-        poolID = False
-        pool = self._getPoolByName(poolName)
-        if not pool:
-            return False
-        if pool:
-            poolDict = json.loads(pool)
-            poolID = poolDict['id']
-        return (poolID)
 
     def createFileSystem(self, name, pool, size, nasServer, description='', isThinEnabled='true', sizeAllocated=None):
         '''
@@ -547,9 +523,10 @@ class unityarray:
         ## Change the pool Variable to contain just that representation
 
         poolDict = {}
-        poolDict['id'] = json.loads(self._getPoolByName(pool))['id']
-        pool = poolDict
-        del poolDict
+        pool = getPool(pool)['id']
+        # poolDict['id'] = json.loads(self.getPoolByName(pool))['id']
+        # pool = poolDict
+        # del poolDict
         logging.debug(pool)
 
         ## Need to create a dictionary representation for the JSON { {"id":"nasServerID"}
@@ -603,6 +580,8 @@ class unityarray:
     def getLUN(self, name):
         return self.getStorageDict(resourceType="lun", name=name)
 
+    def getPool(self, name):
+        return (self.getStorageDict(resourceType="pool", name=name))
 
     def getStorageDict(self, resourceType="lun", name="", id=""):
         """
@@ -628,11 +607,22 @@ class unityarray:
             ',isWindowsToUnixUsernameMappingEnabled,allowUnmappedUser,cifsServer,preferredInterfaceSettings'
             ',fileDNSServer,fileInterface,virusChecker'
         )
+        poolfields = (
+            'id,health,name,description,storageResourceType,raidType,sizeFree,sizeUsed,sizeSubscribed'
+            ',alertThreshold,isFASTCacheEnabled,tiers,creationTime,isEmpty,poolFastVP,isHarvestEnabled'
+            ',harvestState,isSnapHarvestEnabled,poolSpaceHarvestHighThreshold,poolSpaceHarvestLowThreshold'
+            ',snapSpaceHarvestHighThreshold,snapSpaceHarvestLowThreshold,metadataSizeSubscribed'
+            ',snapSizeSubscribed,metadataSizeUsed,snapSizeUsed,rebalanceProgress'
+        )
+
         resourceType = resourceType.lower()
         if resourceType == 'lun':
             # Here when we are looking for a LUN
             urlAPI = '/api/types/lun/instances'
             fields = lunfields
+        elif resourceType == 'pool':
+            urlAPI = '/api/types/pool/instances'
+            fields = poolfields
         elif resourceType == 'nfs':
             # Here when we are looking for a file system
             urlAPI = '/api/types/nfsServer/instances'
@@ -656,7 +646,6 @@ class unityarray:
             # get by name
             if resourceType == 'nfs':
                 u = self.urlbase + urlAPI + '?fields=' + fields + '&filter=hostName eq "{}"'.format(name)
-                u = self.urlbase + urlAPI + '?fields=' + fields
             else:
                 u = self.urlbase + urlAPI + '?fields=' + fields + '&filter=name eq "{}"'.format(name)
         else:

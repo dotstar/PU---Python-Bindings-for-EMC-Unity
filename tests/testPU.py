@@ -60,7 +60,7 @@ if __name__ == "__main__":
             logging.info('FAILED - deleteStorage')
 
     # Get and print from array
-    testUtility = True
+    testUtility = False
     if testUtility:
         j = a.basicSystemInfo()
         print(json.dumps(j, indent=2, sort_keys=True))
@@ -105,9 +105,18 @@ if __name__ == "__main__":
 
     testSnap = True
     if testSnap:
-        lun = 'lunderdog'
-        snapName = 'testSnap_{}'.format(os.getpid())  # Get a modestly unique snap Name
-        snap = a.snapByName(lun, snapName)
-        print("snap returns as {}".format(snap))
-        # snap.delete()
-        a.deleteSnap(snapName=snapName)
+        # Create a LUN
+        # Snap shot the LUN x 2
+        # Delete one Snap
+        # Delete the LUN and take the remaining snap with it.
+        lname = '_cdd_test_lun_{}'.format(os.getpid())
+        pool = 'flash01'
+        size = 4 * a.oneGB
+        rc = a.createLUN(name=lname, pool=pool, size=size)  # This fails if it already exists.
+        if not rc:
+            logging.critical("FAILED - couldn't create LUN {} in pool {}".format(lname, pool))
+        else:
+            snapName = 'testSnap_{}'.format(os.getpid())  # Get a modestly unique snap Name
+            snap = a.snapByName(lname, snapName)
+            print("snap returns as {}".format(snap))
+            # a.deleteSnap(snapName=snapName)
