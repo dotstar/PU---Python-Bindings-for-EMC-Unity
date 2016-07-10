@@ -116,7 +116,12 @@ if __name__ == "__main__":
         if not rc:
             logging.critical("FAILED - couldn't create LUN {} in pool {}".format(lname, pool))
         else:
-            snapName = 'testSnap_{}'.format(os.getpid())  # Get a modestly unique snap Name
-            snap = a.snapByName(lname, snapName)
-            print("snap returns as {}".format(snap))
-            # a.deleteSnap(snapName=snapName)
+            snapName = 'testSnap_{}_1'.format(os.getpid())  # Get a modestly unique snap Name
+            snap = a.createsnap(lname, snapName)
+
+            snapName = 'testSnap_{}_2'.format(os.getpid())  # Get a modestly unique snap Name
+            snap = a.createsnap(lname, snapName)
+            # Delete the most recently created Snap
+            a.deleteSnap(snapName=snapName)
+            # Now delete the LUN
+            a.deleteStorage(name=lname)

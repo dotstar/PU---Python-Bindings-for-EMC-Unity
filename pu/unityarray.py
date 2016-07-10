@@ -99,32 +99,6 @@ class unityarray:
 
         logging.info('array instantiated')
 
-    def _getSnapIdByName(self, snapName):
-        '''
-
-        :param snapName:
-        :return:
-         snapID
-         False if the snapshot name doesn't already exist
-        '''
-
-        u = self.urlbase + '/api/types/snap/instances'  # All Snapshots
-        returnCode = False
-        ids = self._getIds(u)
-        for snapId in ids:
-            u = self.urlbase + '/api/instances/snap/{}?fields=name'.format(snapId)
-            logging.debug(u)
-            snapInstance = self.session.get(url=u)
-            if snapInstance.ok:
-                # snapJson = (json.loads(snapInstance.content.decode('utf-8')))
-                snapJson = snapInstance.json()
-                thisSnapName = snapJson['content']['name']
-                if thisSnapName == snapName:
-                    returnCode = snapJson['content']['id']
-                    break
-            else:
-                self._printError("GET", snapInstance)
-        return (returnCode)
 
     def _prettyJson(self, j):
         '''
@@ -176,24 +150,6 @@ class unityarray:
             # print ('id: {} idList: {}'.format(id,idList))
         return idList
 
-    def _mapNameToStorageResourceID(self, lunName):
-        instances = self._getIds(self.urlbase + '/api/types/lun/instances')
-        storageResourceID = ""
-        for i in instances:
-            u = self.urlbase + '/api/instances/lun/{}?fields=name,storageResource'.format(i)
-            logging.debug(u)
-            lunInstance = self.session.get(url=u)
-            if lunInstance.ok:
-                # lunJSON = (json.loads(lunInstance.content.decode('utf-8')))
-                lunJSON = lunInstance.json()
-                thisLunName = lunJSON['content']["name"]
-                if thisLunName == lunName:
-                    # storageResourceID = lunJSON['content']['storageResource']['id']
-                    storageResourceID = lunJSON['content']['storageResource']
-                    break
-            else:
-                self._printError("GET", lunInstance)
-        return (storageResourceID)
 
     def _restToJSON(self, url):
         """ Utility code used for the numerous get requests which take a REST value and traslate to JSON"""
@@ -227,31 +183,41 @@ class unityarray:
         logging.debug(url)
         return self._restToJSON(url)
 
-    def snapByName(self, lunName, snapName):
+    def createsnap(self, lunName, snapName):
         """
 
         :rtype: JSON object representing the SNAP ID - or False
         """
-        returnCode = False
         # map the lunName to the storageResourceID
-        storageResourceID = self._mapNameToStorageResourceID(lunName)
-        if not storageResourceID:
-            logging.warning("couldn't find a LUN named {}".format(lunName))
-            return returnCode
-
-        # make sure the snap shot doesn't already exist
-        if self._getSnapIdByName(snapName):
+        sr = self.getStorageResource(lunName)
+        if not sr:
+            logging.critical("couldn't associate {} with a storage resource".format(lunName))
+            return False  # Throw?
+        # Make sure there isn't already a snap with this name
+        snap = self.getSnap(snapName)
+        if snap:
             logging.warning("snapshot name {} already exists - please pick a different name".format(snapName))
-            return returnCode
+            return False
 
         # create the snap
-        u = self.urlbase + '/api/types/snap/instances'
-        storageResourceID = json.dumps(storageResourceID)
-        body = '{' + '"storageResource" : {} , "name" : "{}" '.format(storageResourceID, snapName) + '}'
+        srbody = {}
+        srbody['id'] = sr['id']
+        srbody['name'] = sr['name']
+        body = {}
+        body['storageResource'] = srbody
+        body['name'] = snapName
+        # body['description'] = 'created by {}'.format(__file__)
+        jsonBody = json.dumps(body)
 
-        r = self.session.post(url=u, data=body, headers=self.headers, verify=False)
+        # Build the URL and POST to create the Snapshot
+        u = self.urlbase + '/api/types/snap/instances'
+        r = self.session.post(url=u, data=jsonBody, headers=self.headers, verify=False)
         if r.ok:
+            logging.info("Created Snap {} on LUN {}".format(snapName, lunName))
             returnCode = pu.snap.snap(array=self, name=snapName)
+        else:
+            logging.info("Snapshot failed -  Snap {} on LUN {}".format(snapName, lunName))
+            returnCode = False
         return returnCode
 
     def deleteSnap(self, snapName='', snapID=''):
@@ -260,31 +226,27 @@ class unityarray:
         :param snapName: a string with the logical name of the snapShot
         :return: False on failure, True on success
         '''
+        logging.info("deleteSnap {} {}".format(snapName, snapID))
         returnCode = False
         if not snapName and not snapID:
             print('need to provide either snapName or snapID')
             return returnCode
         if not snapID:
-            # If we were provided a name, and not iD find the ID
-            # If we received both, ID over-rides name
-            snapID = self._getSnapIdByName(snapName)
+            # If we don't have a snapID, get one
+            # [ method called by name ]
+            snap = self.getSnap(snapName)
+            if not snap:
+                logging.critical('')
+                return False
+            snapID = snap['id']
         if snapID:
-            returnCode = self._deleteSnapByID(snapID)
-        return (returnCode)
-
-    def _deleteSnapByID(self, snapID):
-        '''
-        Delete a SNAP shot by Snap ID
-        :param snapID: A String with the snapID
-        :return: False on failure, True on success
-        '''
-        returnCode = False
-        logging.debug('_deleteSnapByID({})'.format(snapID))
-        # How do we check input here?
-        u = self.urlbase + '/api/instances/snap/' + snapID
-        r = self.session.delete(url=u, verify=False, headers=self.headers)
-        if r.ok:
-            returnCode = True
+            u = self.urlbase + '/api/instances/snap/' + snapID
+            r = self.session.delete(url=u, verify=False, headers=self.headers)
+            if r.ok:
+                logging.info("Deleted Snap {} SnapID {}".format(snapName, snapID))
+                returnCode = True
+            else:
+                logging.warning("Delete Failed: Snap {} SnapID {}".format(snapName, snapID))
         return (returnCode)
 
     def listPools(self):
@@ -583,6 +545,12 @@ class unityarray:
     def getPool(self, name):
         return (self.getStorageDict(resourceType="pool", name=name))
 
+    def getStorageResource(self, name):
+        return (self.getStorageDict(resourceType="sr", name=name))
+
+    def getSnap(self, name):
+        return (self.getStorageDict(resourceType="snap", name=name))
+
     def getStorageDict(self, resourceType="lun", name="", id=""):
         """
 
@@ -614,6 +582,17 @@ class unityarray:
             ',snapSpaceHarvestHighThreshold,snapSpaceHarvestLowThreshold,metadataSizeSubscribed'
             ',snapSizeSubscribed,metadataSizeUsed,snapSizeUsed,rebalanceProgress'
         )
+        srfields = (
+            'id,health,name,description,type,isReplicationDestination,replicationType,sizeTotal,sizeUsed'
+            ',sizeAllocated,thinStatus,esxFilesystemMajorVersion,esxFilesystemBlockSize,snapSchedule'
+            ',isSnapSchedulePaused'
+        )
+
+        snapfields = (
+            'id,name,description,storageResource,lun,snapGroup,parentSnap,creationTime,expirationTime'
+            ',creatorType,creatorUser,creatorSchedule,isSystemSnap,isModifiable,attachedWWN,accessType'
+            ',isReadOnly,lastWritableTime,isModified,isAutoDelete,state,size,ioLimitPolicy'
+        )
 
         resourceType = resourceType.lower()
         if resourceType == 'lun':
@@ -631,10 +610,19 @@ class unityarray:
             # Here when we are looking for a file system
             urlAPI = '/api/types/filesystem/instances'
             fields = fsfields
+        elif resourceType == 'sr':
+            # For Unity StorageResources include LUNs, Consistency Groups, Filesystems
+            # VMware NFS and VMDS, VVOL file and VVOL Block
+            urlAPI = '/api/types/storageResource/instances'
+            fields = srfields
         elif resourceType == 'nas':
             # Here when we need a NAS instance ( the filer/data mover )
             urlAPI = '/api/types/nasServer/instances'
             fields = nasfields
+        elif resourceType == 'snap':
+            # Here when we
+            urlAPI = '/api/types/snap/instances'
+            fields = snapfields
         else:
             logging.critical('unknown resource type {} passed to getStorageDict'.format(resourceType))
             return False
