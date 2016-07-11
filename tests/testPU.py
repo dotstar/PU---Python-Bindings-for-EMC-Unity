@@ -70,7 +70,7 @@ if __name__ == "__main__":
         if j:
             print(json.dumps(j, indent=2, sort_keys=True))
 
-    testFS = False
+    testFS = True
     if testFS:
         nas = a.getNAS('nas02')
         nasID = nas['id']

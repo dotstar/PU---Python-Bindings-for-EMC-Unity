@@ -485,11 +485,10 @@ class unityarray:
         ## Change the pool Variable to contain just that representation
 
         poolDict = {}
-        pool = getPool(pool)['id']
-        # poolDict['id'] = json.loads(self.getPoolByName(pool))['id']
-        # pool = poolDict
-        # del poolDict
-        logging.debug(pool)
+        rpool = self.getPool(pool)
+        poolDict['id'] = rpool['id']
+        poolDict['name'] = rpool['name']
+        logging.debug(poolDict)
 
         ## Need to create a dictionary representation for the JSON { {"id":"nasServerID"}
         ## change the NasServer variable
@@ -503,7 +502,7 @@ class unityarray:
         # Create the Body of the Request
         # Starting with the File System Parameters Structure
         fsp = {}
-        fsp['pool'] = pool
+        fsp['pool'] = poolDict
         fsp['size'] = size
         fsp['supportedProtocols'] = 0
         fsp['isThinEnabled'] = 'true'
@@ -516,11 +515,11 @@ class unityarray:
         body['name'] = name
         body['description'] = description
         body['fsParameters'] = fsp
-        body = json.dumps(body)
-        logging.debug(body)
+        jsonbody = json.dumps(body)
+        logging.debug(jsonbody)
 
         u = self.urlbase + '/api/types/storageResource/action/createFilesystem'
-        r = self.session.post(url=u, data=body, headers=self.headers, verify=False)
+        r = self.session.post(url=u, data=jsonbody, headers=self.headers, verify=False)
         if r.ok:
             js = r.json()
             # js = json.loads(r.content.decode('utf-8'))
