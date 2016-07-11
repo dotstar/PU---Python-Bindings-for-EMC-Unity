@@ -9,10 +9,17 @@ import sys
 sys.path.insert(0, os.path.abspath('..'))
 
 import pu.snap
-import json
 # from snap import snap
 
 import logging
+
+
+def printTestResult(result, name=""):
+    if result:
+        logging.info('SUCCESS - {}'.format(name))
+    else:
+        logging.info('FAILED - {}'.format(name))
+
 
 if __name__ == "__main__":
     host = '192.168.23.21'
@@ -23,67 +30,63 @@ if __name__ == "__main__":
 
     logging.basicConfig(format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
                         datefmt='%m-%d %H:%M:%S',
-                        level=logging.DEBUG)
+                        level=logging.INFO)
     logging.debug('host: {} - user: {} - password: {}'.format(host, user, password))
 
     # Authenticate to array ...
     a = pu.unityarray.unityarray(ipaddr=host, user=user, password=password)
 
-    testLUNs = False
+    testLUNs = True
     if testLUNs:
         # create a LUN, look it up, delete it
-        logging.info('testing getStorageDict by name')
+        logging.info('testing createLUN by name')
         lname = 'test_only_cdd_{}'.format(os.getpid())
         # Create a LUN for testing
         rc = a.createLUN(name=lname, pool='flash01', size=3 * a.oneGB)  # This fails if it already exists.
-        if rc:
-            logging.info('SUCCESS - createLUN')
-        else:
-            logging.info('FAILED - createLUN')
+        printTestResult(rc, 'createLun()')
 
-        lun = a.getStorageDict(name=lname)
-        if lun['name'] != lname:
-            logging.info('FAILED - getLun() by name')
-        else:
-            logging.info('SUCCESS - getLun() by name')
-            logging.info('testing getStorageDict by id')
-            lid = lun['id']
-            lun = a.getStorageDict(id=lid)
-            if lun['id'] == lid and lun['name'] == lname:
-                logging.info('SUCCESS - getLun() by id')
-            else:
-                logging.info('FAILED - getLun() by id')
-        rc = a.deleteStorage(name=lname, resourceType='lun')
-        if rc:
-            logging.info('SUCCESS - deleteStorage')
-        else:
-            logging.info('FAILED - deleteStorage')
+        logging.info('testing getLUN by name')
+        lun = a.getLUN(name=lname)
+        printTestResult(lun, 'getLUN()')
+
+        logging.info('testing deleteLUN for a LUN named {}'.format(lname))
+        rc = a.deleteLUN(name=lname)
+        printTestResult(rc, 'deleteLUN() [LUN]')
 
     # Get and print from array
-    testUtility = False
+    testUtility = True
+    logging.info('testing utilities')
     if testUtility:
         j = a.basicSystemInfo()
-        print(json.dumps(j, indent=2, sort_keys=True))
+        printTestResult(j, 'basicSystemInfo()')
+        # print(json.dumps(j, indent=2, sort_keys=True))
+
         j = a.system()
-        print(json.dumps(j, indent=2, sort_keys=True))
+        printTestResult(j, 'system()')
+        # print(json.dumps(j, indent=2, sort_keys=True))
+
         j = a.getNASServers()
-        if j:
-            print(json.dumps(j, indent=2, sort_keys=True))
+        printTestResult(j, 'getNASServers()')
 
     testFS = True
     if testFS:
         nas = a.getNAS('nas02')
         nasID = nas['id']
-        print("nasID: {}".format(nasID))
+        printTestResult(nas, 'getNAS()')
+        # print("nasID: {}".format(nasID))
+
         fs = a.getFS('nfs02')
         fsID = fs['id']
-        print('file system: {}'.format(fsID))
-        nfs = a.getNFS('vmfs_nfs')
+        # print('file system: {}'.format(fsID))
+        printTestResult(fs, 'getFS()')
+
+        # nfs = a.getNFS('vmfs_nfs')
         # nfsID = nfs['id']
         # print('NFS Share: {}'.format(nfsID))
         # exit()
 
         # Create a file system
+        logging.info('test: create a filesystem ...')
         pid = os.getpid()
         fsname = '_testfs__do_not_use_{}'.format(pid)
         fsdescr = 'a test file system {} which should be uniquely named so that we can delete it at will'.format(pid)
@@ -92,16 +95,20 @@ if __name__ == "__main__":
         nasname = 'nas02'
 
         fsNasServer = a.getNAS(nasname)
-        if fsNasServer:
-            logging.info('SUCCESS - getNASByName({} {})'.format(nasID, fsNasServer))
-        else:
-            logging.warning('FAILED - getNASByName({} {})'.format(nasID, fsNasServer))
+        printTestResult(fsNasServer, 'getNAS()')
+
         for i in range(0, 1):
             # create some filesystems
             logging.basicConfig(level=logging.DEBUG)
             fsname = '_testfs__do_not_use_{}_{}'.format(pid, i)
+            logging.info('calling createFS({}) -- this takes a minute ...'.format(fsname))
             f = a.createFileSystem(name=fsname, pool=fspool, size=fssize, nasServer=fsNasServer, description=fsdescr)
-    logging.basicConfig(level=logging.DEBUG)
+            printTestResult(f, 'createFileSystem()')
+            if f:
+                # If we successfully created the temporary file system, delete it.
+                logging.info('calling deleteFS({}) -- this takes 15+ seconds ...'.format(fsname))
+                rc = a.deleteFS(fsname)
+                printTestResult(rc, fsname)
 
     testSnap = True
     if testSnap:
@@ -113,15 +120,23 @@ if __name__ == "__main__":
         pool = 'flash01'
         size = 4 * a.oneGB
         rc = a.createLUN(name=lname, pool=pool, size=size)  # This fails if it already exists.
+        printTestResult(rc, 'createLUN()')
         if not rc:
             logging.critical("FAILED - couldn't create LUN {} in pool {}".format(lname, pool))
         else:
             snapName = 'testSnap_{}_1'.format(os.getpid())  # Get a modestly unique snap Name
             snap = a.createsnap(lname, snapName)
+            printTestResult(snap, 'createSnap({})'.format(snapName))
 
             snapName = 'testSnap_{}_2'.format(os.getpid())  # Get a modestly unique snap Name
             snap = a.createsnap(lname, snapName)
+            printTestResult(snap, 'createSnap({})'.format(snapName))
+
             # Delete the most recently created Snap
-            a.deleteSnap(snapName=snapName)
+            rc = a.deleteSnap(snapName=snapName)
+            printTestResult(rc, 'deleteSnap({})'.format(snapName))
             # Now delete the LUN
-            a.deleteStorage(name=lname)
+            rc = a.deleteStorage(name=lname)
+            printTestResult(rc, 'deleteStorage({})'.format(lname))
+
+    logging.info('All tests complete')

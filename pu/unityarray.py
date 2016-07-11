@@ -330,6 +330,14 @@ class unityarray:
 
         return returnCode
 
+    def deleteLUN(self, name):
+        rc = self.deleteStorage(name=name, resourceType='lun')
+        return rc
+
+    def deleteFS(self, name):
+        rc = self.deleteStorage(name=name, resourceType='fs')
+        return rc
+
     def deleteStorage(self, id=None, name=None, resourceType='lun'):
         '''
 
@@ -346,30 +354,29 @@ class unityarray:
                     resourceType))
             return False
 
-        lun = None
-        if resourceType == "lun":
-            # prepare to delete a LUN
-            if id:
-                storageResource = self.getStorageDict(id=id)
-            elif name:
-                storageResource = self.getStorageDict(name=name)
-            elif not id and not name:
-                logging.critical('you must supply id or name to deleteStorage()')
-                return False
-        else:
-            # prepare to delete a file system
-            logging.critical('type {} not implemented'.format(resourceType))
-            return False
+        sr = None
+        bodyDict = {}
+        if resourceType == 'lun':
+            sr = self.getLUN(name)
+            # Create the command body - current behavior is
+            # to dump all snaps and vvols associated with this LUN
+            bodyDict['forceSnapDeletion'] = 'true'
+            bodyDict['forceVvolDeletion'] = 'true'
+        elif resourceType == 'fs':
+            sr = self.getFS(name)
+
+        ### Is this a different ID for LUNs and File systems (!!??)
+        id = sr['storageResource']['id']
+
+        # we can be called with an ID or a Name
+        # if both are specified, default to ID
+        # at least one must be provided
+
 
         # following code is germane to deleting a LUN or filesystem
 
-        # Create the command body - current behavior is
-        # to dump all snaps and vvols associated with this LUN
-        bodyDict = {}
-        bodyDict['forceSnapDeletion'] = 'true'
-        bodyDict['forceVvolDeletion'] = 'true'
         body = json.dumps(bodyDict)
-        id = storageResource['id']
+
         u = self.urlbase + '/api/instances/storageResource/{}'.format(id)
         # Delete
         r = self.session.delete(url=u, data=body, headers=self.headers, verify=False)
@@ -405,60 +412,6 @@ class unityarray:
         if not Valid:
             retCode = False
         return retCode
-
-    def getNASIdFromName(self, nasname):
-        '''
-
-        :param nasname: - the name that the user calls this NAS
-        :return: integer ID or False
-        '''
-
-        u = self.urlbase + '/api/types/nasServer/instances'  # All Snapshots
-        returnCode = False
-        ids = self._getIds(u)
-        for nasId in ids:
-            u = self.urlbase + '/api/instances/nasServer/{}?fields=name'.format(nasId)
-            logging.debug(u)
-            nasInstance = self.session.get(url=u)
-            if nasInstance.ok:
-                # nasJson = (json.loads(nasInstance.content.decode('utf-8')))
-                nasJson = nasInstance.json()
-                thisNASName = nasJson['content']['name']
-                if thisNASName == nasname:
-                    returnCode = nasJson['content']['id']
-                    break
-            else:
-                self._printError("GET", nasInstance)
-        return (returnCode)
-
-    def getNASById(self, nasID):
-        '''
-        :param nasID: ID of NAS in question, probably returned by the method self.getNASIdFromName
-        :return: string, with JSON as returned form the REST API -or- False
-        '''
-        serverList = self.getNASServers()
-        returncode = False
-        for nas in serverList:
-            listNasID = nas['content']['id']
-            if listNasID == nasID:
-                returncode = json.dumps(nas['content'])
-                break
-        return returncode
-
-    def getNASByName(self, name):
-        """
-
-        :param name:
-        :return: NAS String or False
-        """
-        ReturnCode = False
-        NasID = self.getNASIdFromName(name)
-        if NasID:
-            NAS = self.getNASById(NasID)
-            if NAS:
-                ReturnCode = NAS
-        return ReturnCode
-
 
     def createFileSystem(self, name, pool, size, nasServer, description='', isThinEnabled='true', sizeAllocated=None):
         '''
