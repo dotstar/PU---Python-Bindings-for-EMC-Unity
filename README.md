@@ -1,7 +1,7 @@
 # PU ---Python-Bindings-for-EMC-Unity
 Python bindings to the EMC Unity NAS array.
 
-## Background
+### Background
 12 July 2016
 
 The [EMC Unity](https://www.emc.com/en-us/storage/unity.htm#tab2=0&tab3=0&collapse=) 
@@ -11,7 +11,7 @@ as a hardware or virtual appliance.
 
 These python bindings call the Unity REST API and return python dictionaries.
 
-## Intention
+### Intention
 The author's desire is to enable automation of the high frequency activities
 such as create/delete of snapshots, LUNs, File systems and vVols. 
 Other aspects of the API less frequent and perhaps less interesting for automation.
@@ -19,20 +19,25 @@ For example, how often do you need to alter the DNS server or NTP server of a st
 
 Someday, we may build this out as a complete set of bindings to the REST API, but we're starting at those actions with the highest benefit from automation.
   
+### Requirements
+pip install requests
+pip install json
+
 
 ## Examples
 
 ### Login and create a session / array object
 
 ```python
-import pu.snap
-import pu.array
+from pu.unityarray import unityarray
+from pu.snap import snap
+
 
 host = "10.0.0.3"
 login = "admin"
 password = "Password123#"
 
-a = pu.unityarray.unityarray(ipaddr=host, user=user, password=password)
+a = unityarray(ipaddr=host, user=user, password=password)
 
 
 ```
@@ -44,49 +49,48 @@ def printTestResult(result, name=""):
     if result:
         logging.info('SUCCESS - {}'.format(name))
     else:
-    logging.info('FAILED - {}'.format(name))
-           
-           
-    lname = 'test_only_cdd_{}'.format(os.getpid())
+        logging.info('FAILED - {}'.format(name))
+       
+lname = 'test_only_cdd_{}'.format(os.getpid())
 
-    # Create a LUN for testing
-    rc = a.createLUN(name=lname, pool='flash01', size=3 * a.oneGB)  # This fails if it already exists.
-    printTestResult(rc, 'createLun()')
+# Create a LUN for testing
+rc = a.createLUN(name=lname, pool='flash01', size=3 * a.oneGB)  # This fails if it already exists.
+printTestResult(rc, 'createLun()')
 
-    logging.info('testing getLUN by name')
-    lun = a.getLUN(name=lname)
-    printTestResult(lun, 'getLUN()')
+logging.info('testing getLUN by name')
+lun = a.getLUN(name=lname)
+printTestResult(lun, 'getLUN()')
 
-    logging.info('testing deleteLUN for a LUN named {}'.format(lname))
-    rc = a.deleteLUN(name=lname)
-    printTestResult(rc, 'deleteLUN() [LUN]')
+logging.info('testing deleteLUN for a LUN named {}'.format(lname))
+rc = a.deleteLUN(name=lname)
+printTestResult(rc, 'deleteLUN() [LUN]')
 ```
 
-### create a File System, delete a File System
+### Create a File System, Delete a File System
 ```python
-    logging.info('test: create a filesystem ...')
-    pid = os.getpid()
-    fsname = '_testfs__do_not_use_{}'.format(pid)
-    fsdescr = 'a test file system {} which should be uniquely named so that we can delete it at will'.format(pid)
-    fspool = 'flash01'
-    fssize = 3 * a.oneGB  # 3 GB
-    nasname = 'nas02'
+logging.info('test: create a filesystem ...')
+pid = os.getpid()
+fsname = '_testfs__do_not_use_{}'.format(pid)
+fsdescr = 'a test file system {} which should be uniquely named so that we can delete it at will'.format(pid)
+fspool = 'flash01'
+fssize = 3 * a.oneGB  # 3 GB
+nasname = 'nas02'
 
-    fsNasServer = a.getNAS(nasname)
-    printTestResult(fsNasServer, 'getNAS()')
+fsNasServer = a.getNAS(nasname)
+printTestResult(fsNasServer, 'getNAS()')
 
-    for i in range(0, 1):
-        # create some filesystems
-        logging.basicConfig(level=logging.DEBUG)
-        fsname = '_testfs__do_not_use_{}_{}'.format(pid, i)
-        logging.info('calling createFS({}) -- this takes a minute ...'.format(fsname))
-        f = a.createFileSystem(name=fsname, pool=fspool, size=fssize, nasServer=fsNasServer, description=fsdescr)
-        printTestResult(f, 'createFileSystem()')
-        if f:
-            # If we successfully created the temporary file system, delete it.
-            logging.info('calling deleteFS({}) -- this takes 15+ seconds ...'.format(fsname))
-            rc = a.deleteFS(fsname)
-            printTestResult(rc, fsname)
+for i in range(0, 1):
+    # create some filesystems
+    logging.basicConfig(level=logging.DEBUG)
+    fsname = '_testfs__do_not_use_{}_{}'.format(pid, i)
+    logging.info('calling createFS({}) -- this takes a minute ...'.format(fsname))
+    f = a.createFileSystem(name=fsname, pool=fspool, size=fssize, nasServer=fsNasServer, description=fsdescr)
+    printTestResult(f, 'createFileSystem()')
+    if f:
+        # If we successfully created the temporary file system, delete it.
+        logging.info('calling deleteFS({}) -- this takes 15+ seconds ...'.format(fsname))
+        rc = a.deleteFS(fsname)
+        printTestResult(rc, fsname)
 ```
 
 

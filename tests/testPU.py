@@ -8,8 +8,7 @@ import sys
 
 sys.path.insert(0, os.path.abspath('..'))
 
-import pu.snap
-# from snap import snap
+from pu.unityarray import unityarray
 
 import logging
 
@@ -34,7 +33,7 @@ if __name__ == "__main__":
     logging.debug('host: {} - user: {} - password: {}'.format(host, user, password))
 
     # Authenticate to array ...
-    a = pu.unityarray.unityarray(ipaddr=host, user=user, password=password)
+    a = unityarray(ipaddr=host, user=user, password=password)
 
     testLUNs = True
     if testLUNs:
