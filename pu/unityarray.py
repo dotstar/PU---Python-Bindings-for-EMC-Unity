@@ -9,14 +9,14 @@ Draws from EMC Perl examples and EMC OpenStack driver(s) at https://github.com/e
 # 2 July 2016
 # Dickerson
 
+
 import json
 import logging
 import sys
 
+import pu.snap
 import requests
 from requests.auth import HTTPBasicAuth
-
-import pu.snap
 
 
 class unityarray:
