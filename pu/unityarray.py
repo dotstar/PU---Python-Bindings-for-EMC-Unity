@@ -94,6 +94,7 @@ class unityarray:
         self.password = password
         self.ipaddr = ipaddr
         self.oneGB = 1 * 1024 * 1024 * 1024
+        self.threeGB = 3 * self.oneGB
         if not _authenticate(self.urlbase, self.ipaddr, self.password, self.timeout):
             logging.critical("couldn't authenticate to array {}".format(ipaddr))
 

@@ -9,21 +9,29 @@ import sys
 sys.path.insert(0, os.path.abspath('..'))
 
 from pu.unityarray import unityarray
+import time
 
 import logging
 
 
-def printTestResult(result, name=""):
+def printTestResult(result, name="", arg1=""):
     if result:
-        logging.info('SUCCESS - {}'.format(name))
+        logging.info('SUCCESS - {} {}'.format(name,arg1))
     else:
-        logging.info('FAILED - {}'.format(name))
+        logging.info('FAILED - {} {}'.format(name,arg1))
 
 
 if __name__ == "__main__":
     host = '192.168.23.21'
     user = 'configureme'
     password = 'Password123#'
+
+    testLUNs = False
+    testUtility = False
+    testFS = False
+    testFSSnap = True
+    testSnap = False
+
 
     # disable_urllib_warnings() # by being at least logging.INFO
 
@@ -35,7 +43,6 @@ if __name__ == "__main__":
     # Authenticate to array ...
     a = unityarray(ipaddr=host, user=user, password=password)
 
-    testLUNs = True
     if testLUNs:
         # create a LUN, look it up, delete it
         logging.info('testing createLUN by name')
@@ -53,7 +60,6 @@ if __name__ == "__main__":
         printTestResult(rc, 'deleteLUN() [LUN]')
 
     # Get and print from array
-    testUtility = True
     logging.info('testing utilities')
     if testUtility:
         j = a.basicSystemInfo()
@@ -67,7 +73,6 @@ if __name__ == "__main__":
         j = a.getNASServers()
         printTestResult(j, 'getNASServers()')
 
-    testFS = True
     if testFS:
         nas = a.getNAS('nas02')
         nasID = nas['id']
@@ -109,7 +114,51 @@ if __name__ == "__main__":
                 rc = a.deleteFS(fsname)
                 printTestResult(rc, fsname)
 
-    testSnap = True
+    if testFSSnap:
+        # Create a filesystem
+
+        # fsname = 'fs_2_snap_test{}'.format(os.getpid())
+
+        timestamp = time.strftime('%d%M%Y_%H%M%S',time.localtime())
+        logging.info('current time is {}'.format(timestamp))
+        fsname = 'fs_snap_test_{}_'.format(timestamp)
+        fsdescr = 'fs {} created to be the basis for snap testing'.format(fsname)
+        fspool = 'flash01'
+        fssize = a.threeGB
+        nasname = 'nas02'
+
+        fsNasServer = a.getNAS(nasname)
+        if fsNasServer:
+            logging.info('creating file system {}'.format(fsname) + 'this takes about 60 seconds ...')
+            f = a.createFileSystem(name=fsname, pool=fspool, size=fssize, nasServer=fsNasServer, description=fsdescr)
+            fs = a.getFS(fsname)
+            printTestResult((fsname == fs['name']), 'getFS()',fsname)
+
+            # Snap the Filesystem
+            logging.info('creating snapshot of file system: {}'.format(fsname))
+            snapname = "snap_" + fsname
+            s = a.createsnap(fsname,snapname)
+            printTestResult('s','createsnap()')
+            exit()
+            # Delete the Snap
+            logging.info('deleting snapshot of file system: {}'.format(fsname))
+            rc = a.deleteSnap(snapName=snapname)
+            printTestResult(rc,'deleteFS({})'.format(fsname))
+
+            # Delete the File System
+            a.deleteFS(fsname)
+        else:
+            logging.error("couldn't find NAS server {}".format(nasname))
+            logging.info('FAILED - {}'.format('getNAS({})'.format(nasname)))
+
+
+
+        # Snap it
+        # Delete the snap
+        # Delete the file system
+
+
+
     if testSnap:
         # Create a LUN
         # Snap shot the LUN x 2
@@ -135,7 +184,7 @@ if __name__ == "__main__":
             rc = a.deleteSnap(snapName=snapName)
             printTestResult(rc, 'deleteSnap({})'.format(snapName))
             # Now delete the LUN
-            rc = a.deleteStorage(name=lname)
+            rc = a.deleteLUN(name=lname)
             printTestResult(rc, 'deleteStorage({})'.format(lname))
 
     logging.info('All tests complete')

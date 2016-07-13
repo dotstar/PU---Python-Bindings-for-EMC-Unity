@@ -1,8 +1,8 @@
-# PU ---Python-Bindings-for-EMC-Unity
+# pu  Python bindings for EMC Unity
 Python bindings to the EMC Unity NAS array.
 
 ### Background
-12 July 2016
+13 July 2016
 
 The [EMC Unity](https://www.emc.com/en-us/storage/unity.htm#tab2=0&tab3=0&collapse=) 
 family of arrays deliver a mid-tier storage platform 
@@ -120,6 +120,40 @@ else:
     rc = a.deleteSnap(snapName=snapName)
     printTestResult(rc, 'deleteSnap({})'.format(snapName))
     # Now delete the LUN
-    rc = a.deleteStorage(name=lname)
-    printTestResult(rc, 'deleteStorage({})'.format(lname))
+    rc = a.deleteLUN(name=lname)
+    printTestResult(rc, 'deleteLUN({})'.format(lname))
+```
+
+### Create and Delete File System Snapshots
+```python
+timestamp = time.strftime('%d%M%Y_%H%M%S',time.localtime())
+fsname = 'fs_snap_test_{}_'.format(timestamp)
+fsdescr = 'fs {} created to be the basis for snap testing'.format(fsname)
+fspool = 'flash01'
+fssize = a.threeGB
+nasname = 'nas02'
+
+fsNasServer = a.getNAS(nasname)
+if fsNasServer:
+    logging.info('creating file system {}'.format(fsname) + 'this takes about 60 seconds ...')
+    f = a.createFileSystem(name=fsname, pool=fspool, size=fssize, nasServer=fsNasServer, description=fsdescr)
+    fs = a.getFS(fsname)
+    printTestResult((fsname == fs['name']), 'getFS()',fsname)
+
+    # Snap the Filesystem
+    logging.info('creating snapshot of file system: {}'.format(fsname))
+    snapname = "snap_" + fsname
+    s = a.createsnap(fsname,snapname)
+    printTestResult('s','createsnap()')
+    exit()
+    # Delete the Snap
+    logging.info('deleting snapshot of file system: {}'.format(fsname))
+    rc = a.deleteSnap(snapName=snapname)
+    printTestResult(rc,'deleteFS({})'.format(fsname))
+
+    # Delete the File System
+    a.deleteFS(fsname)
+else:
+    logging.error("couldn't find NAS server {}".format(nasname))
+    logging.info('FAILED - {}'.format('getNAS({})'.format(nasname)))
 ```
