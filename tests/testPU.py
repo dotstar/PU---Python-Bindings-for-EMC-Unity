@@ -122,6 +122,7 @@ if __name__ == "__main__":
         timestamp = time.strftime('%d%M%Y_%H%M%S',time.localtime())
         logging.info('current time is {}'.format(timestamp))
         fsname = 'fs_snap_test_{}_'.format(timestamp)
+        fsname = 'mytest'
         fsdescr = 'fs {} created to be the basis for snap testing'.format(fsname)
         fspool = 'flash01'
         fssize = a.threeGB
@@ -129,17 +130,49 @@ if __name__ == "__main__":
 
         fsNasServer = a.getNAS(nasname)
         if fsNasServer:
-            logging.info('creating file system {}'.format(fsname) + 'this takes about 60 seconds ...')
-            f = a.createFileSystem(name=fsname, pool=fspool, size=fssize, nasServer=fsNasServer, description=fsdescr)
-            fs = a.getFS(fsname)
-            printTestResult((fsname == fs['name']), 'getFS()',fsname)
+            # If the file system doesn't exist, create it.
+            if not a.getFS(fsname):
+                logging.info('creating file system {}'.format(fsname) + ' this takes about 60 seconds ...')
+                f = a.createFileSystem(name=fsname, pool=fspool, size=fssize, nasServer=fsNasServer, description=fsdescr)
+                fs = a.getFS(fsname)
+                if fs:
+                    printTestResult((fsname == fs['name']), 'getFS()',fsname)
+                else:
+                    logging.fatal("couldn't create fs: {}".format(fsname))
+                    exit()
+            else:
+                logging.info('using pre-existing file system {} as basis for snaps'.format(fsname))
 
             # Snap the Filesystem
-            logging.info('creating snapshot of file system: {}'.format(fsname))
-            snapname = "snap_" + fsname
-            s = a.createsnap(fsname,snapname)
+            snapname = "snap_{}_{}".format(fsname,os.getpid())
+            logging.info('creating snapshot {} of file system: {}'.format(snapname,fsname))
+            snapid = a.createsnap(fsname,snapname)
+            if not snapid:
+                logging.warning("snapshot failed.  Exiting")
+                exit()
             printTestResult('s','createsnap()')
-            exit()
+            snap = a.getSnap(name=snapname)
+            if not snap:
+                logging.warning("can't find snapshot {}. Exiting".format(snapname))
+                exit()
+
+            logging.info('creating an NFS share for filesystem {}'.format(fsname))
+            shareName = 'cdd_{}'.format(os.getpid())
+            shareFS = a.getFS(fsname)
+            if not shareFS:
+                logging.fatal("could not find file system {}".format(fsname))
+                exit()
+            shareProtocol = 'nfs'
+            description = 'share created from snap named {} of file system{}'.format(snapname,fsname)
+            path='/'
+            protocol = 'nfs'
+            nfsshare = a.createShareFromSnap(name=shareName,snap=snap,protocol=protocol,path=path,description=description)
+            printTestResult(nfsshare,'createShare')
+
+            # pause to allow human intervention
+            istr = input('pausing -- ruffle the snap or file system.  Enter to delete snap')
+            logging.info('execution continues ...')
+
             # Delete the Snap
             logging.info('deleting snapshot of file system: {}'.format(fsname))
             rc = a.deleteSnap(snapName=snapname)

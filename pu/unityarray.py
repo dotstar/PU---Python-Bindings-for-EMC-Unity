@@ -184,7 +184,7 @@ class unityarray:
         logging.debug(url)
         return self._restToJSON(url)
 
-    def createsnap(self, lunName, snapName):
+    def createsnap(self, lunName, snapName,description="",isAutoDelete=False,isReadOnly=False,filesystemAccessType="2"):
         """
 
         :rtype: JSON object representing the SNAP ID - or False
@@ -207,15 +207,20 @@ class unityarray:
         body = {}
         body['storageResource'] = srbody
         body['name'] = snapName
-        # body['description'] = 'created by {}'.format(__file__)
+        body['description'] = description
+        body['isAutoDelete'] = isAutoDelete
+        body['readony'] = isReadOnly
+        body['filesystemAccessType'] = filesystemAccessType
         jsonBody = json.dumps(body)
 
         # Build the URL and POST to create the Snapshot
         u = self.urlbase + '/api/types/snap/instances'
         r = self.session.post(url=u, data=jsonBody, headers=self.headers, verify=False)
         if r.ok:
-            logging.info("Created Snap {} on LUN {}".format(snapName, lunName))
-            returnCode = pu.snap.snap(array=self, name=snapName)
+            tmpDict = r.json()
+            id = tmpDict['content']['id']
+            logging.info("Created Snap {} on Storage Resource {}".format(snapName, lunName))
+            returnCode = id
         else:
             logging.info("Snapshot failed -  Snap {} on LUN {}".format(snapName, lunName))
             returnCode = False
@@ -332,14 +337,14 @@ class unityarray:
         return returnCode
 
     def deleteLUN(self, name):
-        rc = self.deleteStorage(name=name, resourceType='lun')
+        rc = self.deleteStorage(name=name, resourceType='lun',force=True)
         return rc
 
     def deleteFS(self, name):
-        rc = self.deleteStorage(name=name, resourceType='fs')
+        rc = self.deleteStorage(name=name, resourceType='fs',force=True)
         return rc
 
-    def deleteStorage(self, id=None, name=None, resourceType='lun'):
+    def deleteStorage(self, id=None, name=None, resourceType='lun', force=False ):
         '''
 
         :param lunID: an internal ID which references the resource of filesystem ID, typically as returned by _getIDs()
@@ -357,12 +362,14 @@ class unityarray:
 
         sr = None
         bodyDict = {}
+        if force:
+            bodyDict['forceSnapDeletion'] = 'true'
+            bodyDict['forceVvolDeletion'] = 'true'
         if resourceType == 'lun':
             sr = self.getLUN(name)
             # Create the command body - current behavior is
             # to dump all snaps and vvols associated with this LUN
-            bodyDict['forceSnapDeletion'] = 'true'
-            bodyDict['forceVvolDeletion'] = 'true'
+
         elif resourceType == 'fs':
             sr = self.getFS(name)
 
@@ -384,7 +391,7 @@ class unityarray:
         if r.ok:
             retCode = True
         else:
-            logging.warning('failed to retrieve {} name: {} id: {}', resourceType, name, name)
+            logging.warning('failed to retrieve {} name: {} id: {}'.format(resourceType, name, id))
             retCode = False
         return (retCode)
 
@@ -483,6 +490,66 @@ class unityarray:
             self._printError("POST", r)
         return returnCode
 
+    def createShareFromSnap(self,name,snap,protocol='nfs',path='/',description=""):
+        '''
+        Create a new share
+        At this moment, we only know about NFS version 3 shares
+        And no attempt is made to control access
+        Access is available to everyone.
+        :param name: String name of the new share
+        :param protocol: Sting - ignored for now, must be nfs
+        :param path:
+        :param description:
+        :param snap: python structure of a Unity File System Snapshot
+        :return: share object or False
+        '''
+        returnCode = False
+        logging.debug('createShare {}'.format(name))
+        if not snap or not name:
+            logging.warning('createShareFromSnap - must include name and filesystem')
+            return False
+        if not snap['id'] or not snap['name']:
+            logging.warning('createShareFromSnap - snap structure looks incomplete (needs id and name)')
+            return False
+
+        # Check to see if this share name already exists
+        if self.getNFSShare(name):
+            logging.warning('share {} exists'.format(name))
+        else:
+            logging.info('validated that {} in not an existing share'.format(name))
+
+        # Build the arguments to create and NFS Share
+        body = {}
+        myfs = {}
+        myfs['id']=snap['id']
+        myfs['name'] = snap['name']
+        body['snap']=myfs
+        body['path']=path
+        body['name']=name
+        body['description']=description
+        jsonbody = json.dumps(body)
+        logging.debug(jsonbody)
+
+        u = self.urlbase + '/api/types/nfsShare/instances'
+        r = self.session.post(url=u, data=jsonbody, headers=self.headers, verify=False)
+        if r.ok:
+            js = r.json()
+            # js = json.loads(r.content.decode('utf-8'))
+            nfsShareID = js['content']['id']
+            returnCode = nfsShareID
+        else:
+            self._printError("POST", r)
+        return returnCode
+
+
+
+
+        return returnCode
+
+    def getNFSShare(self,name):
+        # Not implemented.
+        return self.getStorageDict(resourceType="nfsshare", name=name)
+
     def getNAS(self, name):
         return self.getStorageDict(resourceType="nas", name=name)
 
@@ -541,6 +608,12 @@ class unityarray:
             ',isSnapSchedulePaused'
         )
 
+        nfssharefields = (
+            'id,type,role,filesystem,snap,name,path,exportPaths,description,isReadOnly'
+            ',creationTime,modificationTime,defaultAccess,minSecurity,noAccessHosts,readOnlyHosts'
+            ',readWriteHosts,rootAccessHosts,hostAccesses'
+        )
+
         snapfields = (
             'id,name,description,storageResource,lun,snapGroup,parentSnap,creationTime,expirationTime'
             ',creatorType,creatorUser,creatorSchedule,isSystemSnap,isModifiable,attachedWWN,accessType'
@@ -572,6 +645,9 @@ class unityarray:
             # Here when we need a NAS instance ( the filer/data mover )
             urlAPI = '/api/types/nasServer/instances'
             fields = nasfields
+        elif resourceType == 'nfsshare':
+            urlAPI = '/api/types/nfsShare/instances'
+            fields = nfssharefields
         elif resourceType == 'snap':
             # Here when we
             urlAPI = '/api/types/snap/instances'
