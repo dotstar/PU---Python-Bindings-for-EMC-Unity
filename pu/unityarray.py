@@ -13,8 +13,10 @@ Draws from EMC Perl examples and EMC OpenStack driver(s) at https://github.com/e
 import json
 import logging
 import sys
+import os
 
-import pu.snap
+sys.path.insert(0, os.path.abspath('.'))
+from pu.unityEnums import *
 import requests
 from requests.auth import HTTPBasicAuth
 
@@ -184,11 +186,24 @@ class unityarray:
         logging.debug(url)
         return self._restToJSON(url)
 
-    def createsnap(self, storageResourceName, snapName, description="", isAutoDelete=False, isReadOnly=False, filesystemAccessType="2"):
-        """
+    def createsnap(self, storageResourceName,
+                   snapName,
+                   description="",
+                   isAutoDelete=False,
+                   isReadOnly=False,
+                   filesystemAccessType=2):
+                   # filesystemAccessType=FilesystemSnapAccessTypeEnum.protocol):
+        '''
 
-        :rtype: JSON object representing the SNAP ID - or False
-        """
+        :param storageResourceName: string with the name of the file system or lun (source)
+        :param snapName:  string with the name of the resulting snapshot
+        :param description:
+        :param isAutoDelete: Boolean
+        :param isReadOnly: Boolean
+        :param filesystemAccessType: protocol or checkpoint
+        :return: string with snap id or False
+        '''
+
         # map the storageResourceName to the storageResourceID
         sr = self.getStorageResource(storageResourceName)
         if not sr:
@@ -554,6 +569,11 @@ class unityarray:
         body['path']=path
         body['name']=name
         body['description']=description
+        # This needs to be corrected!
+        # For initial testing grant all access to all hosts.
+        body['defaultAccess']=NFSShareDefaultAccessEnum.Root.value
+        body['minSecurity'] = NFSShareSecurityEnum.Sys.value
+
         jsonbody = json.dumps(body)
         logging.debug(jsonbody)
 
@@ -568,10 +588,6 @@ class unityarray:
             self._printError("POST", r)
         return returnCode
 
-
-
-
-        return returnCode
 
     def getNFSShare(self,name):
         # Not implemented.
@@ -707,3 +723,5 @@ class unityarray:
         else:
             self._printError('GET', sr)
             return None
+
+

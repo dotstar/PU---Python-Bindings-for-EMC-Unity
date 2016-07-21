@@ -9,6 +9,8 @@ import sys
 sys.path.insert(0, os.path.abspath('..'))
 
 from pu.unityarray import unityarray
+from pu.unityEnums import FilesystemSnapAccessTypeEnum
+
 import time
 
 import logging
@@ -146,7 +148,8 @@ if __name__ == "__main__":
             # Snap the Filesystem
             snapname = "snap_{}_{}".format(fsname,os.getpid())
             logging.info('creating snapshot {} of file system: {}'.format(snapname,fsname))
-            snapid = a.createsnap(storageResourceName=fsname,snapName=snapname)
+            snapid = a.createsnap(storageResourceName=fsname,snapName=snapname,
+                                  filesystemAccessType=FilesystemSnapAccessTypeEnum.Protocol.value)
             if not snapid:
                 logging.warning("snapshot failed.  Exiting")
                 exit()
@@ -156,8 +159,8 @@ if __name__ == "__main__":
                 logging.warning("can't find snapshot {}. Exiting".format(snapname))
                 exit()
 
-            logging.info('creating an NFS share for filesystem {}'.format(fsname))
             shareName = 'cdd_{}'.format(os.getpid())
+            logging.info('creating an NFS share {} for filesystem {}'.format(shareName,fsname))
             shareFS = a.getFS(fsname)
             if not shareFS:
                 logging.fatal("could not find file system {}".format(fsname))
@@ -183,7 +186,7 @@ if __name__ == "__main__":
             printTestResult(rc,'deleteFS({})'.format(fsname))
 
             # Delete the File System
-            a.deleteFS(fsname)
+            # a.deleteFS(fsname)
         else:
             logging.error("couldn't find NAS server {}".format(nasname))
             logging.info('FAILED - {}'.format('getNAS({})'.format(nasname)))
