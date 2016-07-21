@@ -146,7 +146,7 @@ if __name__ == "__main__":
             # Snap the Filesystem
             snapname = "snap_{}_{}".format(fsname,os.getpid())
             logging.info('creating snapshot {} of file system: {}'.format(snapname,fsname))
-            snapid = a.createsnap(fsname,snapname)
+            snapid = a.createsnap(storageResourceName=fsname,snapName=snapname)
             if not snapid:
                 logging.warning("snapshot failed.  Exiting")
                 exit()
@@ -166,12 +166,16 @@ if __name__ == "__main__":
             description = 'share created from snap named {} of file system{}'.format(snapname,fsname)
             path='/'
             protocol = 'nfs'
-            nfsshare = a.createShareFromSnap(name=shareName,snap=snap,protocol=protocol,path=path,description=description)
+            nfsshare = a.createNFSShareFromSnap(name=shareName, snap=snap, protocol=protocol, path=path, description=description)
             printTestResult(nfsshare,'createShare')
 
             # pause to allow human intervention
             istr = input('pausing -- ruffle the snap or file system.  Enter to delete snap')
             logging.info('execution continues ...')
+
+            rc = a.deleteNFSShare(name=shareName)
+            if not rc:
+                logging.warning("deleteNFSShare({}) failed".format(shareName))
 
             # Delete the Snap
             logging.info('deleting snapshot of file system: {}'.format(fsname))

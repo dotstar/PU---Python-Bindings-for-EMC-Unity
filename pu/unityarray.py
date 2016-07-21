@@ -184,15 +184,15 @@ class unityarray:
         logging.debug(url)
         return self._restToJSON(url)
 
-    def createsnap(self, lunName, snapName,description="",isAutoDelete=False,isReadOnly=False,filesystemAccessType="2"):
+    def createsnap(self, storageResourceName, snapName, description="", isAutoDelete=False, isReadOnly=False, filesystemAccessType="2"):
         """
 
         :rtype: JSON object representing the SNAP ID - or False
         """
-        # map the lunName to the storageResourceID
-        sr = self.getStorageResource(lunName)
+        # map the storageResourceName to the storageResourceID
+        sr = self.getStorageResource(storageResourceName)
         if not sr:
-            logging.critical("couldn't associate {} with a storage resource".format(lunName))
+            logging.critical("couldn't associate {} with a storage resource".format(storageResourceName))
             return False  # Throw?
         # Make sure there isn't already a snap with this name
         snap = self.getSnap(snapName)
@@ -209,7 +209,7 @@ class unityarray:
         body['name'] = snapName
         body['description'] = description
         body['isAutoDelete'] = isAutoDelete
-        body['readony'] = isReadOnly
+        body['isReadOnly'] = isReadOnly
         body['filesystemAccessType'] = filesystemAccessType
         jsonBody = json.dumps(body)
 
@@ -219,10 +219,10 @@ class unityarray:
         if r.ok:
             tmpDict = r.json()
             id = tmpDict['content']['id']
-            logging.info("Created Snap {} on Storage Resource {}".format(snapName, lunName))
+            logging.info("Created Snap {} on Storage Resource {} SnapID {}".format(snapName, storageResourceName,id))
             returnCode = id
         else:
-            logging.info("Snapshot failed -  Snap {} on LUN {}".format(snapName, lunName))
+            logging.info("Snapshot failed -  Snap {} on LUN {}".format(snapName, storageResourceName))
             returnCode = False
         return returnCode
 
@@ -343,6 +343,33 @@ class unityarray:
     def deleteFS(self, name):
         rc = self.deleteStorage(name=name, resourceType='fs',force=True)
         return rc
+
+    def deleteNFSShare(self,name=None):
+        """
+        Delete an NFS Share
+        Preserve the associated file system
+        :param name:  string - share name
+        :return: True or False
+        """
+        if not name:
+            logging.warning('need to pass a name to deleteNFSShare')
+            return False
+
+        id = (self.getNFSShare(name))['id']
+        if not id:
+            logging.warning("can't find id associated with share named {}".format(name))
+        u = self.urlbase + '/api/instances/nfsShare/{}'.format(id)
+        body = ""
+        # Delete
+        r = self.session.delete(url=u, data=body, headers=self.headers, verify=False)
+        if r.ok:
+            retCode = True
+        else:
+            logging.warning('failed to delete name: {} id: {}'.format( name, id))
+            retCode = False
+        return (retCode)
+
+
 
     def deleteStorage(self, id=None, name=None, resourceType='lun', force=False ):
         '''
@@ -490,7 +517,7 @@ class unityarray:
             self._printError("POST", r)
         return returnCode
 
-    def createShareFromSnap(self,name,snap,protocol='nfs',path='/',description=""):
+    def createNFSShareFromSnap(self, name, snap, protocol='nfs', path='/', description=""):
         '''
         Create a new share
         At this moment, we only know about NFS version 3 shares
@@ -504,19 +531,19 @@ class unityarray:
         :return: share object or False
         '''
         returnCode = False
-        logging.debug('createShare {}'.format(name))
+        logging.debug('createShare name:{} snap:{}'.format(name,snap))
         if not snap or not name:
-            logging.warning('createShareFromSnap - must include name and filesystem')
+            logging.warning('createNFSShareFromSnap - must include name and filesystem')
             return False
         if not snap['id'] or not snap['name']:
-            logging.warning('createShareFromSnap - snap structure looks incomplete (needs id and name)')
+            logging.warning('createNFSShareFromSnap - snap structure looks incomplete (needs id and name)')
             return False
 
         # Check to see if this share name already exists
         if self.getNFSShare(name):
             logging.warning('share {} exists'.format(name))
         else:
-            logging.info('validated that {} in not an existing share'.format(name))
+            logging.debug('validated that {} in not an existing share'.format(name))
 
         # Build the arguments to create and NFS Share
         body = {}
