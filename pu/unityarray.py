@@ -564,7 +564,7 @@ class unityarray:
         body = {}
         myfs = {}
         myfs['id']=snap['id']
-        myfs['name'] = snap['name']
+        # myfs['name'] = snap['name']
         body['snap']=myfs
         body['path']=path
         body['name']=name
