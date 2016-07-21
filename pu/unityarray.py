@@ -575,7 +575,7 @@ class unityarray:
         body['minSecurity'] = NFSShareSecurityEnum.Sys.value
 
         jsonbody = json.dumps(body)
-        logging.debug(jsonbody)
+        # logging.debug(jsonbody)
 
         u = self.urlbase + '/api/types/nfsShare/instances'
         r = self.session.post(url=u, data=jsonbody, headers=self.headers, verify=False)
